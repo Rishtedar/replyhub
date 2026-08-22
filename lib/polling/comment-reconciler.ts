@@ -63,7 +63,10 @@ function errMessage(error: unknown): string {
 /** One reconciliation pass across every active campaign. */
 export async function reconcileComments(): Promise<void> {
   const automations = await prisma.automation.findMany({
-    where: { isActive: true },
+    // Instagram-only sweep — getRecentMediaComments/getUserMedia below are
+    // Instagram Graph API calls, so a Facebook-targeting automation
+    // (instagramAccountId null) has nothing here to reconcile against.
+    where: { isActive: true, instagramAccountId: { not: null } },
     select: {
       id: true,
       name: true,
@@ -89,7 +92,15 @@ export async function reconcileComments(): Promise<void> {
   const tokenCache = new Map<string, string | null>();
 
   for (const automation of automations) {
-    const stat = await sweepCampaign(automation, sinceMs, tokenCache).catch(
+    // The query above already filters instagramAccountId: { not: null }, so
+    // this is always true at runtime — narrows the type for sweepCampaign,
+    // which still declares instagramAccount as required.
+    if (!automation.instagramAccount) continue;
+    const stat = await sweepCampaign(
+      { ...automation, instagramAccount: automation.instagramAccount },
+      sinceMs,
+      tokenCache
+    ).catch(
       (error): SweepStat => ({
         campaign: automation.name,
         keywords: automation.keywords.join(","),

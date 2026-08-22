@@ -6,9 +6,16 @@ import {
   parseMessageEvents,
   parsePostbackEvents,
   parseReadEvents,
+  parseFacebookCommentEvents,
+  parseFacebookMessageEvents,
   verifyWebhookSignature,
 } from "@/lib/meta/webhook";
-import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
+import {
+  MESSAGE_JOB_NAME,
+  POSTBACK_JOB_NAME,
+  FACEBOOK_COMMENT_JOB_NAME,
+  FACEBOOK_MESSAGE_JOB_NAME,
+} from "@/lib/queue/client";
 import { Prisma } from "@/app/generated/prisma/client";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
@@ -172,6 +179,76 @@ export async function POST(request: NextRequest) {
         await prisma.webhookEvent.update({
           where: { id: webhookEvent.id },
           data: { workspaceId: account.workspaceId },
+        });
+      }
+    }
+
+    // Facebook Page comments (this is where all the Facebook worker code
+    // added in lib/queue/dm-worker.ts actually gets triggered from — without
+    // this block those functions are unreachable dead code).
+    const facebookCommentEvents = parseFacebookCommentEvents(
+      payload as Parameters<typeof parseFacebookCommentEvents>[0]
+    );
+
+    for (const event of facebookCommentEvents) {
+      const page = await prisma.facebookPage.findUnique({
+        where: { pageId: event.pageId },
+        select: { workspaceId: true },
+      });
+
+      await queue.add(
+        FACEBOOK_COMMENT_JOB_NAME,
+        {
+          pageId: event.pageId,
+          commentId: event.commentId,
+          commentText: event.commentText,
+          commenterId: event.commenterId,
+          commenterName: event.commenterName,
+          postId: event.postId,
+        },
+        {
+          jobId: `fbcomment_${event.pageId}_${event.commentId}`,
+        }
+      );
+
+      if (page) {
+        await prisma.webhookEvent.update({
+          where: { id: webhookEvent.id },
+          data: { workspaceId: page.workspaceId },
+        });
+      }
+    }
+
+    // Facebook Messenger DMs.
+    const facebookMessageEvents = parseFacebookMessageEvents(
+      payload as Parameters<typeof parseFacebookMessageEvents>[0]
+    );
+
+    for (const event of facebookMessageEvents) {
+      const page = await prisma.facebookPage.findUnique({
+        where: { pageId: event.pageId },
+        select: { workspaceId: true },
+      });
+
+      await queue.add(
+        FACEBOOK_MESSAGE_JOB_NAME,
+        {
+          pageId: event.pageId,
+          messageId: event.messageId,
+          messageText: event.messageText,
+          senderId: event.senderId,
+        },
+        {
+          jobId: `fbmessage_${event.pageId}_${Buffer.from(
+            event.messageId
+          ).toString("base64url")}`,
+        }
+      );
+
+      if (page) {
+        await prisma.webhookEvent.update({
+          where: { id: webhookEvent.id },
+          data: { workspaceId: page.workspaceId },
         });
       }
     }

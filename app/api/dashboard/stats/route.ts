@@ -50,12 +50,15 @@ export async function GET(request: NextRequest) {
     recentLogs,
     user,
     contactRows,
+    facebookPages,
   ] = await Promise.all([
     prisma.workspace.findUnique({
       where: { id: workspaceId },
       select: {
         name: true,
         dmsSentThisPeriod: true,
+        llmBusinessContext: true,
+        llmRedirectLink: true,
       },
     }),
     prisma.instagramAccount.findFirst({
@@ -147,6 +150,16 @@ export async function GET(request: NextRequest) {
       distinct: ["commenterId"],
       select: { commenterId: true },
     }),
+    // Facebook connection status only, for the Settings page — the DM/click
+    // metrics above stay Instagram-only for now (accountFilter is keyed on
+    // instagramAccountId). Folding Facebook into those aggregates is real
+    // follow-up work, deliberately not done in this pass to avoid touching
+    // working dashboard numbers casually.
+    prisma.facebookPage.findMany({
+      where: { workspaceId },
+      orderBy: { connectedAt: "desc" },
+      select: { id: true, name: true, pageId: true, webhookSubscribed: true },
+    }),
   ]);
 
   const dailyDMs: { date: string; count: number }[] = [];
@@ -197,6 +210,7 @@ export async function GET(request: NextRequest) {
       workspace,
       instagramAccount,
       instagramAccounts,
+      facebookPages,
       selectedInstagramAccountId: selectedAccountId,
       totalAutomations,
       activeAutomations,

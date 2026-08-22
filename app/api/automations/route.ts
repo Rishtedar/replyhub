@@ -20,6 +20,11 @@ const createAutomationSchema = z
     name: z.string().min(1).max(100),
     goal: z.string().min(1).max(120).optional().nullable(),
     instagramAccountId: z.string().min(1).optional().nullable(),
+    facebookPageId: z.string().min(1).optional().nullable(),
+    // Fires an LLM-generated informational reply (see lib/ai/socialReply.ts)
+    // when an inbound DM matches no keyword automation. Needs
+    // Workspace.llmBusinessContext/llmRedirectLink configured in Settings.
+    llmFallbackEnabled: z.boolean().optional().default(false),
     postId: z.string().min(1).optional().nullable(),
     postUrl: z.string().url().optional().nullable(),
     pendingNextReel: z.boolean().optional().default(false),
@@ -90,6 +95,7 @@ const updateAutomationSchema = z.object({
   keywords: z.array(z.string().min(1).max(50)).max(10).optional(),
   matchAnyWord: z.boolean().optional(),
   dmTriggerEnabled: z.boolean().optional(),
+  llmFallbackEnabled: z.boolean().optional(),
   dmMessage: z.string().min(1).max(1000).optional(),
   openingDmEnabled: z.boolean().optional(),
   openingDmMessage: z.string().max(1000).optional().nullable(),
@@ -141,6 +147,9 @@ export async function GET(request: NextRequest) {
     include: {
       instagramAccount: {
         select: { username: true, instagramId: true },
+      },
+      facebookPage: {
+        select: { name: true, pageId: true },
       },
       _count: {
         select: { dmLogs: true },
@@ -307,24 +316,39 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Facebook wins when both are somehow present — the builder UI never sends
+  // both, but resolving deterministically avoids relying on that.
+  const requestedFacebookPageId =
+    parsed.data.facebookPageId && parsed.data.facebookPageId !== "all"
+      ? parsed.data.facebookPageId
+      : null;
   const requestedInstagramAccountId =
-    parsed.data.instagramAccountId && parsed.data.instagramAccountId !== "all"
+    !requestedFacebookPageId &&
+    parsed.data.instagramAccountId &&
+    parsed.data.instagramAccountId !== "all"
       ? parsed.data.instagramAccountId
       : null;
 
-  const [workspace, instagramAccount] = await Promise.all([
+  const [workspace, instagramAccount, facebookPage] = await Promise.all([
     prisma.workspace.findUnique({
       where: { id: workspaceId },
       select: { id: true },
     }),
-    requestedInstagramAccountId
-      ? prisma.instagramAccount.findFirst({
-          where: { id: requestedInstagramAccountId, workspaceId },
+    requestedFacebookPageId
+      ? Promise.resolve(null)
+      : requestedInstagramAccountId
+        ? prisma.instagramAccount.findFirst({
+            where: { id: requestedInstagramAccountId, workspaceId },
+          })
+        : prisma.instagramAccount.findFirst({
+            where: { workspaceId },
+            orderBy: { connectedAt: "desc" },
+          }),
+    requestedFacebookPageId
+      ? prisma.facebookPage.findFirst({
+          where: { id: requestedFacebookPageId, workspaceId },
         })
-      : prisma.instagramAccount.findFirst({
-          where: { workspaceId },
-          orderBy: { connectedAt: "desc" },
-        }),
+      : Promise.resolve(null),
   ]);
 
   if (!workspace) {
@@ -334,7 +358,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!instagramAccount) {
+  if (requestedFacebookPageId) {
+    if (!facebookPage) {
+      return NextResponse.json(
+        { success: false, error: "Facebook Page not found" },
+        { status: 400 }
+      );
+    }
+  } else if (!instagramAccount) {
     return NextResponse.json(
       { success: false, error: "Connect Instagram before creating campaigns" },
       { status: 400 }
@@ -395,6 +426,7 @@ export async function POST(request: NextRequest) {
       keywords: matchAnyWord ? [] : parsed.data.keywords,
       matchAnyWord,
       dmTriggerEnabled: parsed.data.dmTriggerEnabled,
+      llmFallbackEnabled: parsed.data.llmFallbackEnabled,
       dmMessage: parsed.data.dmMessage,
       openingDmEnabled,
       openingDmMessage: openingDmEnabled
@@ -428,7 +460,8 @@ export async function POST(request: NextRequest) {
       isActive: parsed.data.isActive,
       wholeWordMatch: parsed.data.wholeWordMatch,
       workspaceId,
-      instagramAccountId: instagramAccount.id,
+      instagramAccountId: facebookPage ? null : instagramAccount!.id,
+      facebookPageId: facebookPage ? facebookPage.id : null,
       reportShareSlug: generateReportShareSlug(),
       ...(linkCreates.length > 0
         ? { trackedLinks: { create: linkCreates } }

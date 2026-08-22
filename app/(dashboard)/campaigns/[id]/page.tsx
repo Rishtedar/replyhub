@@ -38,8 +38,10 @@ interface Campaign {
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
   isActive: boolean;
-  instagramAccountId: string;
-  instagramAccount: { username: string };
+  instagramAccountId: string | null;
+  instagramAccount: { username: string } | null;
+  facebookPageId: string | null;
+  facebookPage: { name: string } | null;
   trackedLinks?: {
     destinationUrl: string;
     label?: string | null;
@@ -83,7 +85,7 @@ export default function CampaignDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!campaign) return;
+    if (!campaign || !campaign.instagramAccountId) return;
     const acct = campaign.instagramAccountId;
     fetch(`/api/instagram/profile?instagramAccountId=${acct}`)
       .then((r) => r.json())
@@ -298,9 +300,11 @@ export default function CampaignDetailPage() {
             <TabButton active={tab === "insights"} onClick={() => setTab("insights")}>
               Insights
             </TabButton>
-            <TabButton active={tab === "preview"} onClick={() => setTab("preview")}>
-              Preview
-            </TabButton>
+            {campaign.instagramAccount && (
+              <TabButton active={tab === "preview"} onClick={() => setTab("preview")}>
+                Preview
+              </TabButton>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -336,7 +340,7 @@ export default function CampaignDetailPage() {
           </div>
         )}
 
-        {tab === "preview" && (
+        {tab === "preview" && campaign.instagramAccount && (
           <div className="flex justify-center sm:justify-start">
           <CampaignPreview
             tab={previewTab}

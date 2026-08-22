@@ -75,9 +75,22 @@ model Workspace {
   usagePeriodStart  DateTime @default(now())
   dmsSentThisPeriod Int      @default(0)
 
+  // Free-text business context (address, hours, parking, common Q&A) fed to
+  // the LLM fallback responder (see lib/ai/socialReply.ts) so it can answer
+  // simple questions without a matching Automation keyword. Null disables the
+  // LLM fallback for every automation in this workspace regardless of each
+  // Automation.llmFallbackEnabled — there is nothing to ground the reply in.
+  llmBusinessContext String?
+  // Where the LLM fallback sends anyone asking for something it can't answer
+  // from llmBusinessContext (e.g. a WhatsApp link with a real conversational
+  // agent behind it). Required alongside llmBusinessContext for the fallback
+  // to actually run.
+  llmRedirectLink     String?
+
   members           WorkspaceMember[]
   invitations       WorkspaceInvitation[]
   instagramAccounts InstagramAccount[]
+  facebookPages     FacebookPage[]
   automations       Automation[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]
@@ -145,6 +158,30 @@ model InstagramAccount {
   @@index([workspaceId])
 }
 
+/// Facebook Page — mirrors InstagramAccount. Kept as its own model instead of
+/// unifying with InstagramAccount because the two platforms' Graph API shapes
+/// (webhook payload, comment reply endpoint, token type) differ enough that a
+/// shared model would need channel-conditional branching everywhere it's
+/// used. Same duplicate-then-adapt call already made in lib/meta/webhook.ts
+/// and lib/meta/client.ts.
+model FacebookPage {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  pageId            String    @unique
+  name              String
+  accessToken       String
+  tokenExpiresAt    DateTime?
+  webhookSubscribed Boolean   @default(false)
+  connectedAt       DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automations Automation[]
+  dmLogs      DmLog[]
+
+  @@index([workspaceId])
+}
+
 /// Daily follower total for one account. Instagram only retains ~30 days of
 /// account insights, so history beyond that window exists only because we
 /// record it here. One row per account per day.
@@ -168,7 +205,11 @@ model FollowerSnapshot {
 model Automation {
   id                 String   @id @default(cuid())
   workspaceId        String
-  instagramAccountId String
+  // Exactly one of instagramAccountId / facebookPageId is set — enforced at
+  // the application layer (automation creation form), not by a DB
+  // constraint. An automation only ever targets one connected platform.
+  instagramAccountId String?
+  facebookPageId     String?
 
   name           String
   goal           String?
@@ -182,6 +223,11 @@ model Automation {
   // keywords above. Independent of the post trigger — a DM has no media, so
   // postId / matchAnyPost do not apply to it.
   dmTriggerEnabled Boolean @default(false)
+  // When enabled, an inbound DM that matches no Automation's keywords gets an
+  // LLM-generated informational reply instead of being ignored. See
+  // lib/ai/socialReply.ts. Fires on the miss, independent of dmTriggerEnabled
+  // (which fires on the hit).
+  llmFallbackEnabled Boolean @default(false)
   dmMessage      String
   openingDmEnabled     Boolean @default(false)
   openingDmMessage     String?
@@ -206,14 +252,16 @@ model Automation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount? @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  facebookPage     FacebookPage?     @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
   dmLogs           DmLog[]
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]
 
   @@index([workspaceId])
   @@index([instagramAccountId])
+  @@index([facebookPageId])
   @@index([postId])
 }
 
@@ -221,7 +269,10 @@ model DmLog {
   id                 String     @id @default(cuid())
   workspaceId        String
   automationId       String
-  instagramAccountId String
+  // Same exactly-one-of convention as Automation — mirrors whichever platform
+  // the parent automation targets.
+  instagramAccountId String?
+  facebookPageId     String?
 
   commenterId   String
   commenterName String?
@@ -242,14 +293,16 @@ model DmLog {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation       Automation        @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount? @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  facebookPage     FacebookPage?     @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
 
   @@unique([automationId, commentId])
   @@index([workspaceId])
   @@index([automationId])
   @@index([instagramAccountId])
+  @@index([facebookPageId])
   @@index([status])
 }
 
@@ -261,12 +314,16 @@ model DmLog {
 // ones every cycle.
 model ProcessedComment {
   id                 String   @id @default(cuid())
-  instagramAccountId String
+  // Exactly one of these two is set, depending on which platform the comment
+  // came from.
+  instagramAccountId String?
+  facebookPageId     String?
   commentId          String   @unique
   source             String // "WEBHOOK" | "POLLING"
   seenAt             DateTime @default(now())
 
   @@index([instagramAccountId])
+  @@index([facebookPageId])
 }
 
 model TrackedLink {

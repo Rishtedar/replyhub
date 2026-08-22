@@ -165,7 +165,9 @@ export async function getCampaignReportBySlug(shareSlug: string) {
       isActive: automation.isActive,
       createdAt: automation.createdAt,
       updatedAt: automation.updatedAt,
-      instagramUsername: automation.instagramAccount.username,
+      // Facebook automations have no report page wired up yet (phase-1 scope
+      // limit — see the plan doc) — instagramAccount is null for them here.
+      instagramUsername: automation.instagramAccount?.username ?? "",
     },
     metrics: {
       sent: statusSummary.sent,

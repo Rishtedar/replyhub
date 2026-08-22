@@ -772,3 +772,112 @@ export async function debugToken(inputToken: string, accessToken: string) {
   const response = await fetch(url.toString());
   return handleResponse(response);
 }
+
+// ─── Facebook Page (Messenger + comments) ──────────────────────────────────
+//
+// Duplicated from the Instagram send functions above rather than sharing code
+// with them — same call as lib/meta/webhook.ts. All three call
+// facebookGraphBase() with a Page Access Token instead of instagramGraphBase()
+// with an Instagram user token.
+
+/**
+ * Send a private reply to a Facebook Page comment. Meta's "Private Replies"
+ * feature is documented as shared between Facebook and Instagram comments,
+ * using the same `recipient.comment_id` shape as sendPrivateReply above — not
+ * yet confirmed against a real Facebook comment, verify before relying on it.
+ */
+export async function sendFacebookPrivateReply(
+  pageAccessToken: string,
+  pageId: string,
+  commentId: string,
+  message: string
+): Promise<{ recipient_id: string; message_id: string }> {
+  const response = await fetch(`${facebookGraphBase()}/${pageId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${pageAccessToken}`,
+    },
+    body: JSON.stringify({
+      recipient: { comment_id: commentId },
+      message: { text: message },
+    }),
+  });
+
+  return handleResponse(response);
+}
+
+/**
+ * Send a plain-text Messenger DM to a user by their PSID (page-scoped ID).
+ */
+export async function sendFacebookDirectMessage(
+  pageAccessToken: string,
+  pageId: string,
+  userId: string,
+  message: string
+): Promise<{ recipient_id: string; message_id: string }> {
+  const response = await fetch(`${facebookGraphBase()}/${pageId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${pageAccessToken}`,
+    },
+    body: JSON.stringify({
+      recipient: { id: userId },
+      message: { text: message },
+      messaging_type: "RESPONSE",
+    }),
+  });
+
+  return handleResponse(response);
+}
+
+/**
+ * Post a public reply under a Facebook Page comment.
+ *
+ * NOT VERIFIED against a real comment yet. Facebook's documented comment
+ * reply endpoint is `POST /{comment-id}/comments` — a different verb than
+ * Instagram's `/{comment-id}/replies` (see sendCommentReply above). Confirm
+ * against a real comment on a connected Page before trusting this in
+ * production.
+ */
+export async function sendFacebookCommentReply(
+  pageAccessToken: string,
+  commentId: string,
+  message: string
+): Promise<{ id: string }> {
+  const response = await fetch(
+    `${facebookGraphBase()}/${commentId}/comments`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+      body: JSON.stringify({ message }),
+    }
+  );
+
+  return handleResponse(response);
+}
+
+export async function subscribePageToWebhooks(
+  pageId: string,
+  pageAccessToken: string
+): Promise<{ success: boolean }> {
+  const response = await fetch(
+    `${facebookGraphBase()}/${pageId}/subscribed_apps`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+      body: JSON.stringify({
+        subscribed_fields: ["feed", "messages"],
+      }),
+    }
+  );
+
+  return handleResponse(response);
+}

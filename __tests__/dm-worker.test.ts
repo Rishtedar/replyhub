@@ -113,6 +113,8 @@ vi.mock("@/lib/queue/client", () => ({
   POSTBACK_JOB_NAME: "process-postback",
   FOLLOWUP_JOB_NAME: "process-followup",
   MESSAGE_JOB_NAME: "process-message",
+  FACEBOOK_COMMENT_JOB_NAME: "process-facebook-comment",
+  FACEBOOK_MESSAGE_JOB_NAME: "process-facebook-message",
 }));
 
 vi.mock("bullmq", () => {
@@ -933,7 +935,7 @@ describe("DM Worker — DM keyword trigger", () => {
     expect(mockPrisma.automation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          dmTriggerEnabled: true,
+          OR: [{ dmTriggerEnabled: true }, { llmFallbackEnabled: true }],
           isActive: true,
         }),
       })

@@ -37,6 +37,7 @@ interface LoadedCampaign {
   keywords: string[];
   matchAnyWord: boolean;
   dmTriggerEnabled: boolean;
+  llmFallbackEnabled: boolean;
   dmMessage: string;
   openingDmEnabled: boolean;
   openingDmMessage: string | null;
@@ -158,6 +159,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [matchMode, setMatchMode] = useState<MatchMode>("specific");
   const [keywordText, setKeywordText] = useState("");
   const [dmTriggerEnabled, setDmTriggerEnabled] = useState(false);
+  const [llmFallbackEnabled, setLlmFallbackEnabled] = useState(false);
 
   const [publicReplyEnabled, setPublicReplyEnabled] = useState(false);
   const [publicReplyMessages, setPublicReplyMessages] = useState<string[]>([""]);
@@ -259,6 +261,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setMatchMode(c.matchAnyWord ? "any" : "specific");
         setKeywordText(c.keywords.join(", "));
         setDmTriggerEnabled(c.dmTriggerEnabled ?? false);
+        setLlmFallbackEnabled(c.llmFallbackEnabled ?? false);
         setPublicReplyEnabled(c.publicReplyEnabled);
         setPublicReplyMessages(
           c.publicReplyMessages?.length
@@ -407,6 +410,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       matchAnyWord: matchMode === "any",
       keywords: matchMode === "any" ? [] : keywords,
       dmTriggerEnabled,
+      llmFallbackEnabled,
       dmMessage,
       openingDmEnabled,
       openingDmMessage: openingDmEnabled ? openingDmMessage : null,
@@ -737,6 +741,22 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               {matchMode === "any"
                 ? "Every DM to this account gets the reply below — use with care."
                 : "A DM containing any of these words gets the same reply, no comment needed."}
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+            <span className="text-sm text-foreground">
+              use as the AI fallback for this account
+            </span>
+            <Toggle
+              on={llmFallbackEnabled}
+              onToggle={() => setLlmFallbackEnabled(!llmFallbackEnabled)}
+            />
+          </div>
+          {llmFallbackEnabled && (
+            <p className="text-xs text-muted">
+              When a DM matches no campaign&apos;s keywords, it gets an AI-generated
+              reply grounded in the business info from Settings → AI Fallback Reply,
+              instead of being ignored.
             </p>
           )}
           <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">

@@ -39,6 +39,10 @@ export async function GET(request: NextRequest) {
     { account: (typeof pending)[number]["instagramAccount"]; automations: typeof pending }
   >();
   for (const automation of pending) {
+    // Reels are an Instagram-only concept — a Facebook-targeting automation
+    // (instagramAccountId null) can't have pendingNextReel apply to it in
+    // practice, but guard anyway since the field is nullable now.
+    if (!automation.instagramAccountId) continue;
     const key = automation.instagramAccountId;
     const entry = byAccount.get(key);
     if (entry) entry.automations.push(automation);

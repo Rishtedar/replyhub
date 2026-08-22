@@ -5,11 +5,15 @@ import {
   MESSAGE_JOB_NAME,
   POSTBACK_JOB_NAME,
   FOLLOWUP_JOB_NAME,
+  FACEBOOK_COMMENT_JOB_NAME,
+  FACEBOOK_MESSAGE_JOB_NAME,
   type DmQueueJob,
   type ProcessCommentJob,
   type ProcessMessageJob,
   type ProcessPostbackJob,
   type ProcessFollowUpJob,
+  type ProcessFacebookCommentJob,
+  type ProcessFacebookMessageJob,
 } from "./client";
 import { prisma } from "@/lib/db/client";
 import {
@@ -24,9 +28,13 @@ import {
   sendPrivateReply,
   sendPrivateReplyWithButton,
   sendPrivateReplyWithLinkButton,
+  sendFacebookCommentReply,
+  sendFacebookPrivateReply,
+  sendFacebookDirectMessage,
 } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
+import { generateSocialReply } from "@/lib/ai/socialReply";
 import { reserveDMSlot } from "@/lib/utils/rate-limiter";
 import {
   releaseWorkspaceDMReservation,
@@ -224,6 +232,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   });
 
   for (const automation of automations) {
+    // The query above filters on instagramAccount.instagramId, so every row
+    // returned here has a non-null relation — this satisfies the type
+    // checker (instagramAccountId is nullable on Automation since a
+    // Facebook-targeting automation has null here instead).
+    if (!automation.instagramAccount) continue;
+
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
@@ -701,6 +715,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
 
   if (
     !automation ||
+    !automation.instagramAccount ||
     automation.instagramAccount.instagramId !== instagramAccountId ||
     !automation.instagramAccount.accessToken
   ) {
@@ -795,9 +810,13 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   }
 
   try {
+    // Narrowing automation.instagramAccount above doesn't propagate into
+    // passing the whole `automation` object elsewhere — TS still sees the
+    // declared (nullable) type on the object as a whole. Reconstruct with
+    // the already-checked non-null value instead of a second guard.
     await sendRevealDirectMessage(
       accessToken,
-      automation,
+      { ...automation, instagramAccount: automation.instagramAccount },
       userId,
       commenterName,
       "postback"
@@ -896,6 +915,7 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
     !automation ||
     !automation.followUpEnabled ||
     !automation.followUpMessage?.trim() ||
+    !automation.instagramAccount ||
     automation.instagramAccount.instagramId !== instagramAccountId ||
     !automation.instagramAccount.accessToken
   ) {
@@ -938,9 +958,13 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
 async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const { instagramAccountId, messageId, messageText, senderId } = job.data;
 
+  // Fetch both keyword-trigger automations and any llmFallbackEnabled=true
+  // automation (which may have dmTriggerEnabled off — it exists purely to
+  // hold the LLM fallback config, see below). The keyword-matching loop
+  // still only acts on dmTriggerEnabled rows.
   const automations = await prisma.automation.findMany({
     where: {
-      dmTriggerEnabled: true,
+      OR: [{ dmTriggerEnabled: true }, { llmFallbackEnabled: true }],
       isActive: true,
       instagramAccount: { instagramId: instagramAccountId },
     },
@@ -955,9 +979,17 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     orderBy: { createdAt: "asc" },
   });
 
+  // The query above filters on instagramAccount.instagramId, so every row
+  // has a non-null relation — same invariant as processComment.
+  if (automations.some((a) => !a.instagramAccount)) return;
+
   const dedupeId = `dm:${messageId}`;
+  let matchedAny = false;
 
   for (const automation of automations) {
+    if (!automation.instagramAccount) continue;
+    if (!automation.dmTriggerEnabled) continue;
+
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
       : matchKeywords(
@@ -967,6 +999,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         );
 
     if (!matchResult.matched) continue;
+    matchedAny = true;
 
     const existingLog = await prisma.dmLog.findUnique({
       where: {
@@ -1103,7 +1136,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       } else {
         await sendRevealDirectMessage(
           accessToken,
-          automation,
+          { ...automation, instagramAccount: automation.instagramAccount },
           senderId,
           commenterName,
           "message trigger"
@@ -1176,6 +1209,475 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       throw error;
     }
   }
+
+  // No keyword automation matched — fall back to an LLM-generated
+  // informational reply if this account has one configured. See
+  // Automation.llmFallbackEnabled and Workspace.llmBusinessContext in the
+  // schema for why this needs both an automation flag and workspace config.
+  if (matchedAny) return;
+
+  const fallbackAutomation = automations.find(
+    (a) => a.llmFallbackEnabled && a.instagramAccount
+  );
+  if (!fallbackAutomation || !fallbackAutomation.instagramAccount) return;
+
+  const { llmBusinessContext, llmRedirectLink } = fallbackAutomation.workspace;
+  if (!llmBusinessContext || !llmRedirectLink) return;
+
+  const fallbackDedupeId = dedupeId;
+  const existingFallbackLog = await prisma.dmLog.findUnique({
+    where: {
+      automationId_commentId: {
+        automationId: fallbackAutomation.id,
+        commentId: fallbackDedupeId,
+      },
+    },
+  });
+  if (
+    existingFallbackLog?.status === "SENT" ||
+    existingFallbackLog?.status === "SKIPPED_PLAN_LIMIT"
+  ) {
+    return;
+  }
+
+  if (!fallbackAutomation.instagramAccount.accessToken) return;
+  let fallbackAccessToken: string;
+  try {
+    fallbackAccessToken = decryptToken(fallbackAutomation.instagramAccount.accessToken);
+  } catch {
+    return;
+  }
+
+  const usage = await reserveWorkspaceDMSend(fallbackAutomation.workspaceId);
+  if (!usage.allowed) {
+    await prisma.dmLog.upsert({
+      where: {
+        automationId_commentId: {
+          automationId: fallbackAutomation.id,
+          commentId: fallbackDedupeId,
+        },
+      },
+      create: {
+        workspaceId: fallbackAutomation.workspaceId,
+        automationId: fallbackAutomation.id,
+        instagramAccountId: fallbackAutomation.instagramAccountId,
+        commenterId: senderId,
+        commentText: messageText,
+        commentId: fallbackDedupeId,
+        status: "SKIPPED_PLAN_LIMIT",
+        errorMessage: `Monthly DM limit reached (${usage.limit})`,
+      },
+      update: {
+        status: "SKIPPED_PLAN_LIMIT",
+        errorMessage: `Monthly DM limit reached (${usage.limit})`,
+      },
+    });
+    return;
+  }
+
+  try {
+    const reply = await generateSocialReply(messageText, {
+      businessContext: llmBusinessContext,
+      redirectLink: llmRedirectLink,
+    });
+    await sendDirectMessage(
+      fallbackAccessToken,
+      fallbackAutomation.instagramAccount.instagramId,
+      senderId,
+      reply
+    );
+    await prisma.dmLog.upsert({
+      where: {
+        automationId_commentId: {
+          automationId: fallbackAutomation.id,
+          commentId: fallbackDedupeId,
+        },
+      },
+      create: {
+        workspaceId: fallbackAutomation.workspaceId,
+        automationId: fallbackAutomation.id,
+        instagramAccountId: fallbackAutomation.instagramAccountId,
+        commenterId: senderId,
+        commentText: messageText,
+        commentId: fallbackDedupeId,
+        status: "SENT",
+        dmSentAt: new Date(),
+      },
+      update: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+    });
+  } catch (error) {
+    await releaseWorkspaceDMReservation(fallbackAutomation.workspaceId, usage.periodStart);
+    await prisma.dmLog.upsert({
+      where: {
+        automationId_commentId: {
+          automationId: fallbackAutomation.id,
+          commentId: fallbackDedupeId,
+        },
+      },
+      create: {
+        workspaceId: fallbackAutomation.workspaceId,
+        automationId: fallbackAutomation.id,
+        instagramAccountId: fallbackAutomation.instagramAccountId,
+        commenterId: senderId,
+        commentText: messageText,
+        commentId: fallbackDedupeId,
+        status: "FAILED",
+        attempts: job.attemptsMade + 1,
+        errorMessage: formatError(error),
+      },
+      update: {
+        status: "FAILED",
+        attempts: job.attemptsMade + 1,
+        errorMessage: formatError(error),
+      },
+    });
+    // Best-effort, unlike the keyword-match path: a bad LLM call shouldn't
+    // trigger BullMQ retries against the same inbound message.
+  }
+}
+
+// ─── Facebook Page (comments + Messenger) ──────────────────────────────────
+//
+// Deliberately smaller feature set than the Instagram functions above for
+// phase 1: no opening-DM button flow, no follow-gate, no link-button
+// templates (Facebook automations don't get trackedLinks yet — see the
+// schema comment on FacebookPage). Plain-text public reply + plain-text
+// private reply/DM only. Extend to match Instagram's feature set later if a
+// real need shows up, rather than building it speculatively now.
+
+async function processFacebookComment(
+  job: Job<ProcessFacebookCommentJob>
+): Promise<void> {
+  const { pageId, commentId, commentText, commenterId, commenterName, postId } =
+    job.data;
+
+  const automations = await prisma.automation.findMany({
+    where: {
+      OR: [{ postId }, { matchAnyPost: true }],
+      isActive: true,
+      facebookPage: { pageId },
+    },
+    include: { facebookPage: true, workspace: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  for (const automation of automations) {
+    if (!automation.facebookPage) continue;
+
+    const matchResult = automation.matchAnyWord
+      ? { matched: true, matchedKeyword: null }
+      : matchKeywords(commentText, automation.keywords, automation.wholeWordMatch);
+    if (!matchResult.matched) continue;
+
+    const existingLog = await prisma.dmLog.findUnique({
+      where: { automationId_commentId: { automationId: automation.id, commentId } },
+    });
+    const alreadyDmd = existingLog?.status === "SENT";
+    const alreadyPublicReplied = Boolean(existingLog?.publicReplySentAt);
+    const needsDm = !alreadyDmd;
+
+    if (existingLog?.status === "SKIPPED_PLAN_LIMIT") continue;
+    if (alreadyDmd && (alreadyPublicReplied || !automation.publicReplyEnabled)) {
+      continue;
+    }
+
+    const logBase = {
+      workspaceId: automation.workspaceId,
+      automationId: automation.id,
+      facebookPageId: automation.facebookPageId,
+      commenterId,
+      commenterName,
+      commentText,
+      commentId,
+      matchedKeyword: matchResult.matchedKeyword,
+    };
+
+    if (!automation.facebookPage.accessToken) {
+      await prisma.dmLog.upsert({
+        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        create: { ...logBase, status: "FAILED", errorMessage: "No Facebook access token available" },
+        update: { status: "FAILED", errorMessage: "No Facebook access token available" },
+      });
+      continue;
+    }
+
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(automation.facebookPage.accessToken);
+    } catch {
+      await prisma.dmLog.upsert({
+        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        create: { ...logBase, status: "FAILED", errorMessage: "Failed to decrypt Facebook access token" },
+        update: { status: "FAILED", errorMessage: "Failed to decrypt Facebook access token" },
+      });
+      continue;
+    }
+
+    if (!existingLog) {
+      await prisma.dmLog.create({ data: { ...logBase, status: "PENDING", attempts: job.attemptsMade + 1 } });
+    } else if (needsDm) {
+      await prisma.dmLog.update({
+        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        data: { status: "PENDING", attempts: job.attemptsMade + 1, matchedKeyword: matchResult.matchedKeyword, errorMessage: null },
+      });
+    }
+
+    // Public reply leg — decoupled from the DM, same rationale as processComment.
+    const replyPool =
+      automation.publicReplyMessages.length > 0
+        ? automation.publicReplyMessages
+        : automation.publicReplyMessage
+          ? [automation.publicReplyMessage]
+          : [];
+    if (automation.publicReplyEnabled && replyPool.length > 0 && !existingLog?.publicReplySentAt) {
+      try {
+        const chosen = replyPool[Math.floor(Math.random() * replyPool.length)];
+        const publicReply = renderMessageWithoutLink({ message: chosen, commenterName });
+        await sendFacebookCommentReply(accessToken, commentId, publicReply);
+        await prisma.dmLog.update({
+          where: { automationId_commentId: { automationId: automation.id, commentId } },
+          data: { publicReplySentAt: new Date(), publicReplyError: null },
+        });
+      } catch (error) {
+        console.error("[DM Worker] Facebook public comment reply failed:", formatError(error));
+        await prisma.dmLog
+          .update({
+            where: { automationId_commentId: { automationId: automation.id, commentId } },
+            data: { publicReplyError: formatError(error) },
+          })
+          .catch(() => {});
+      }
+    }
+
+    if (!needsDm) continue;
+
+    // Same "one private reply per comment" rule as Instagram — see processComment.
+    const privateReplyUsedBy = await prisma.dmLog.findFirst({
+      where: { commentId, status: "SENT", automationId: { not: automation.id } },
+      select: { automation: { select: { name: true } } },
+    });
+    if (privateReplyUsedBy) {
+      await prisma.dmLog.update({
+        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        data: {
+          status: "SKIPPED_DEDUP",
+          matchedKeyword: matchResult.matchedKeyword,
+          errorMessage: `Another campaign (${privateReplyUsedBy.automation?.name ?? "unknown"}) already sent the one private reply Meta allows for this comment`,
+        },
+      });
+      continue;
+    }
+
+    const usage = await reserveWorkspaceDMSend(automation.workspaceId);
+    if (!usage.allowed) {
+      await prisma.dmLog.update({
+        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        data: { status: "SKIPPED_PLAN_LIMIT", matchedKeyword: matchResult.matchedKeyword, errorMessage: `Monthly DM limit reached (${usage.limit})` },
+      });
+      continue;
+    }
+
+    try {
+      const dmMessage = renderMessageWithoutLink({ message: automation.dmMessage, commenterName });
+      await sendFacebookPrivateReply(accessToken, pageId, commentId, dmMessage);
+      await prisma.dmLog.update({
+        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        data: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+      });
+    } catch (error) {
+      await releaseWorkspaceDMReservation(automation.workspaceId, usage.periodStart);
+      await prisma.dmLog.update({
+        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        data: { status: "FAILED", attempts: job.attemptsMade + 1, errorMessage: formatError(error) },
+      });
+      throw error;
+    }
+  }
+}
+
+async function processFacebookMessage(
+  job: Job<ProcessFacebookMessageJob>
+): Promise<void> {
+  const { pageId, messageId, messageText, senderId } = job.data;
+
+  const automations = await prisma.automation.findMany({
+    where: {
+      OR: [{ dmTriggerEnabled: true }, { llmFallbackEnabled: true }],
+      isActive: true,
+      facebookPage: { pageId },
+    },
+    include: { facebookPage: true, workspace: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const dedupeId = `dm:${messageId}`;
+  let matchedAny = false;
+
+  for (const automation of automations) {
+    if (!automation.facebookPage) continue;
+    if (!automation.dmTriggerEnabled) continue;
+
+    const matchResult = automation.matchAnyWord
+      ? { matched: true, matchedKeyword: null }
+      : matchKeywords(messageText, automation.keywords, automation.wholeWordMatch);
+    if (!matchResult.matched) continue;
+    matchedAny = true;
+
+    const existingLog = await prisma.dmLog.findUnique({
+      where: { automationId_commentId: { automationId: automation.id, commentId: dedupeId } },
+    });
+    if (existingLog?.status === "SENT" || existingLog?.status === "SKIPPED_PLAN_LIMIT") {
+      continue;
+    }
+
+    if (!automation.facebookPage.accessToken) continue;
+    let accessToken: string;
+    try {
+      accessToken = decryptToken(automation.facebookPage.accessToken);
+    } catch {
+      continue;
+    }
+
+    const usage = await reserveWorkspaceDMSend(automation.workspaceId);
+    if (!usage.allowed) {
+      await prisma.dmLog.upsert({
+        where: { automationId_commentId: { automationId: automation.id, commentId: dedupeId } },
+        create: {
+          workspaceId: automation.workspaceId,
+          automationId: automation.id,
+          facebookPageId: automation.facebookPageId,
+          commenterId: senderId,
+          commentText: messageText,
+          commentId: dedupeId,
+          status: "SKIPPED_PLAN_LIMIT",
+          errorMessage: `Monthly DM limit reached (${usage.limit})`,
+        },
+        update: { status: "SKIPPED_PLAN_LIMIT", errorMessage: `Monthly DM limit reached (${usage.limit})` },
+      });
+      continue;
+    }
+
+    try {
+      const dmMessage = renderMessageWithoutLink({ message: automation.dmMessage, commenterName: null });
+      await sendFacebookDirectMessage(accessToken, pageId, senderId, dmMessage);
+      await prisma.dmLog.upsert({
+        where: { automationId_commentId: { automationId: automation.id, commentId: dedupeId } },
+        create: {
+          workspaceId: automation.workspaceId,
+          automationId: automation.id,
+          facebookPageId: automation.facebookPageId,
+          commenterId: senderId,
+          commentText: messageText,
+          commentId: dedupeId,
+          matchedKeyword: matchResult.matchedKeyword,
+          status: "SENT",
+          dmSentAt: new Date(),
+        },
+        update: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+      });
+    } catch (error) {
+      await releaseWorkspaceDMReservation(automation.workspaceId, usage.periodStart);
+      await prisma.dmLog.upsert({
+        where: { automationId_commentId: { automationId: automation.id, commentId: dedupeId } },
+        create: {
+          workspaceId: automation.workspaceId,
+          automationId: automation.id,
+          facebookPageId: automation.facebookPageId,
+          commenterId: senderId,
+          commentText: messageText,
+          commentId: dedupeId,
+          status: "FAILED",
+          attempts: job.attemptsMade + 1,
+          errorMessage: formatError(error),
+        },
+        update: { status: "FAILED", attempts: job.attemptsMade + 1, errorMessage: formatError(error) },
+      });
+      throw error;
+    }
+  }
+
+  // Same LLM fallback as processMessage — see the comment there for why this
+  // needs both Automation.llmFallbackEnabled and Workspace config.
+  if (matchedAny) return;
+
+  const fallbackAutomation = automations.find((a) => a.llmFallbackEnabled && a.facebookPage);
+  if (!fallbackAutomation || !fallbackAutomation.facebookPage) return;
+
+  const { llmBusinessContext, llmRedirectLink } = fallbackAutomation.workspace;
+  if (!llmBusinessContext || !llmRedirectLink) return;
+
+  if (!fallbackAutomation.facebookPage.accessToken) return;
+  let fallbackAccessToken: string;
+  try {
+    fallbackAccessToken = decryptToken(fallbackAutomation.facebookPage.accessToken);
+  } catch {
+    return;
+  }
+
+  const existingFallbackLog = await prisma.dmLog.findUnique({
+    where: { automationId_commentId: { automationId: fallbackAutomation.id, commentId: dedupeId } },
+  });
+  if (existingFallbackLog?.status === "SENT" || existingFallbackLog?.status === "SKIPPED_PLAN_LIMIT") {
+    return;
+  }
+
+  const usage = await reserveWorkspaceDMSend(fallbackAutomation.workspaceId);
+  if (!usage.allowed) {
+    await prisma.dmLog.upsert({
+      where: { automationId_commentId: { automationId: fallbackAutomation.id, commentId: dedupeId } },
+      create: {
+        workspaceId: fallbackAutomation.workspaceId,
+        automationId: fallbackAutomation.id,
+        facebookPageId: fallbackAutomation.facebookPageId,
+        commenterId: senderId,
+        commentText: messageText,
+        commentId: dedupeId,
+        status: "SKIPPED_PLAN_LIMIT",
+        errorMessage: `Monthly DM limit reached (${usage.limit})`,
+      },
+      update: { status: "SKIPPED_PLAN_LIMIT", errorMessage: `Monthly DM limit reached (${usage.limit})` },
+    });
+    return;
+  }
+
+  try {
+    const reply = await generateSocialReply(messageText, {
+      businessContext: llmBusinessContext,
+      redirectLink: llmRedirectLink,
+    });
+    await sendFacebookDirectMessage(fallbackAccessToken, pageId, senderId, reply);
+    await prisma.dmLog.upsert({
+      where: { automationId_commentId: { automationId: fallbackAutomation.id, commentId: dedupeId } },
+      create: {
+        workspaceId: fallbackAutomation.workspaceId,
+        automationId: fallbackAutomation.id,
+        facebookPageId: fallbackAutomation.facebookPageId,
+        commenterId: senderId,
+        commentText: messageText,
+        commentId: dedupeId,
+        status: "SENT",
+        dmSentAt: new Date(),
+      },
+      update: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+    });
+  } catch (error) {
+    await releaseWorkspaceDMReservation(fallbackAutomation.workspaceId, usage.periodStart);
+    await prisma.dmLog.upsert({
+      where: { automationId_commentId: { automationId: fallbackAutomation.id, commentId: dedupeId } },
+      create: {
+        workspaceId: fallbackAutomation.workspaceId,
+        automationId: fallbackAutomation.id,
+        facebookPageId: fallbackAutomation.facebookPageId,
+        commenterId: senderId,
+        commentText: messageText,
+        commentId: dedupeId,
+        status: "FAILED",
+        attempts: job.attemptsMade + 1,
+        errorMessage: formatError(error),
+      },
+      update: { status: "FAILED", attempts: job.attemptsMade + 1, errorMessage: formatError(error) },
+    });
+  }
 }
 
 async function processJob(job: Job<DmQueueJob>): Promise<void> {
@@ -1188,6 +1690,12 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
   if (job.name === MESSAGE_JOB_NAME) {
     return processMessage(job as Job<ProcessMessageJob>);
   }
+  if (job.name === FACEBOOK_COMMENT_JOB_NAME) {
+    return processFacebookComment(job as Job<ProcessFacebookCommentJob>);
+  }
+  if (job.name === FACEBOOK_MESSAGE_JOB_NAME) {
+    return processFacebookMessage(job as Job<ProcessFacebookMessageJob>);
+  }
   return processComment(job as Job<ProcessCommentJob>);
 }
 
@@ -1196,15 +1704,24 @@ async function recordWorkerFailure(
   error: Error
 ) {
   try {
-    const instagramAccountId = job?.data.instagramAccountId;
+    const instagramAccountId =
+      job && "instagramAccountId" in job.data ? job.data.instagramAccountId : undefined;
+    const pageId =
+      job && "pageId" in job.data ? job.data.pageId : undefined;
     const commentId =
       job && "commentId" in job.data ? job.data.commentId : null;
+
     const account = instagramAccountId
       ? await prisma.instagramAccount.findUnique({
           where: { instagramId: instagramAccountId },
           select: { workspaceId: true },
         })
-      : null;
+      : pageId
+        ? await prisma.facebookPage.findUnique({
+            where: { pageId },
+            select: { workspaceId: true },
+          })
+        : null;
 
     await prisma.operationalEvent.create({
       data: {
@@ -1216,6 +1733,7 @@ async function recordWorkerFailure(
           jobId: job?.id ?? null,
           attemptsMade: job?.attemptsMade ?? null,
           instagramAccountId: instagramAccountId ?? null,
+          pageId: pageId ?? null,
           commentId,
         },
       },

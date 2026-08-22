@@ -63,15 +63,39 @@ export interface ProcessMessageJob {
   senderId: string;
 }
 
+// Facebook Page equivalents of ProcessCommentJob / ProcessMessageJob — kept
+// as separate job types rather than a shared shape with a channel
+// discriminant, same duplicate-then-adapt call as lib/meta/webhook.ts.
+export interface ProcessFacebookCommentJob {
+  pageId: string;
+  commentId: string;
+  commentText: string;
+  commenterId: string;
+  commenterName?: string;
+  postId: string;
+  requeueAttempt?: number;
+}
+
+export interface ProcessFacebookMessageJob {
+  pageId: string;
+  messageId: string;
+  messageText: string;
+  senderId: string;
+}
+
 export type DmQueueJob =
   | ProcessCommentJob
   | ProcessPostbackJob
   | ProcessFollowUpJob
-  | ProcessMessageJob;
+  | ProcessMessageJob
+  | ProcessFacebookCommentJob
+  | ProcessFacebookMessageJob;
 
 export const POSTBACK_JOB_NAME = "process-postback";
 export const FOLLOWUP_JOB_NAME = "process-followup";
 export const MESSAGE_JOB_NAME = "process-message";
+export const FACEBOOK_COMMENT_JOB_NAME = "process-facebook-comment";
+export const FACEBOOK_MESSAGE_JOB_NAME = "process-facebook-message";
 
 let dmQueue: Queue<DmQueueJob> | null = null;
 

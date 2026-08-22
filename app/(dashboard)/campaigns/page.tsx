@@ -32,13 +32,19 @@ interface Campaign {
   requireFollow: boolean;
   followPromptMessage: string | null;
   followPromptButtonLabel: string | null;
+  llmFallbackEnabled: boolean;
   isActive: boolean;
   wholeWordMatch: boolean;
-  instagramAccountId: string;
+  instagramAccountId: string | null;
   instagramAccount: {
     username: string;
     instagramId: string;
-  };
+  } | null;
+  facebookPageId: string | null;
+  facebookPage: {
+    name: string;
+    pageId: string;
+  } | null;
   reportShareSlug: string | null;
   reportShareEnabled: boolean;
   reportUrl: string | null;
@@ -127,8 +133,13 @@ export default function CampaignsPage() {
     if (automations.length === 0) return;
     let cancelled = false;
     const accountIds = Array.from(
-      new Set(automations.map((a) => a.instagramAccountId))
+      new Set(
+        automations
+          .map((a) => a.instagramAccountId)
+          .filter((id): id is string => Boolean(id))
+      )
     ).sort();
+    if (accountIds.length === 0) return;
     const cacheKey = `ig-media:${accountIds.join(",")}`;
 
     const cached = readCache<{
@@ -240,29 +251,36 @@ export default function CampaignsPage() {
   async function duplicateAutomation(auto: Campaign) {
     setMenuOpenId(null);
     const specific = !auto.matchAnyPost && !auto.pendingNextReel;
+    const isFacebook = Boolean(auto.facebookPageId);
     try {
       const res = await fetch("/api/automations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: `${auto.name} copy`,
-          instagramAccountId: auto.instagramAccountId,
+          instagramAccountId: isFacebook ? null : auto.instagramAccountId,
+          facebookPageId: isFacebook ? auto.facebookPageId : null,
           postId: specific ? auto.postId : null,
-          postUrl: specific ? auto.postUrl : null,
+          postUrl: !isFacebook && specific ? auto.postUrl : null,
           matchAnyPost: auto.matchAnyPost,
-          pendingNextReel: auto.pendingNextReel,
+          pendingNextReel: !isFacebook && auto.pendingNextReel,
           matchAnyWord: auto.matchAnyWord,
           keywords: auto.keywords,
           dmMessage: auto.dmMessage,
-          openingDmEnabled: auto.openingDmEnabled,
+          llmFallbackEnabled: auto.llmFallbackEnabled,
+          openingDmEnabled: !isFacebook && auto.openingDmEnabled,
           openingDmMessage: auto.openingDmMessage,
           openingDmButtonLabel: auto.openingDmButtonLabel,
           publicReplyEnabled: auto.publicReplyEnabled,
           publicReplyMessages: auto.publicReplyMessages,
-          trackedDestinationUrl: auto.trackedLinks[0]?.destinationUrl ?? "",
-          secondaryDestinationUrl: auto.trackedLinks[1]?.destinationUrl ?? "",
+          trackedDestinationUrl: isFacebook
+            ? ""
+            : auto.trackedLinks[0]?.destinationUrl ?? "",
+          secondaryDestinationUrl: isFacebook
+            ? ""
+            : auto.trackedLinks[1]?.destinationUrl ?? "",
           secondaryButtonLabel: auto.trackedLinks[1]?.label ?? "Open link",
-          requireFollow: auto.requireFollow,
+          requireFollow: !isFacebook && auto.requireFollow,
           followPromptMessage: auto.followPromptMessage,
           followPromptButtonLabel: auto.followPromptButtonLabel,
           wholeWordMatch: auto.wholeWordMatch,
@@ -444,7 +462,11 @@ export default function CampaignsPage() {
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <h3 className="text-sm font-semibold truncate">{auto.name}</h3>
                   <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                    @{auto.instagramAccount.username}
+                    {auto.instagramAccount
+                      ? `@${auto.instagramAccount.username}`
+                      : auto.facebookPage
+                        ? `${auto.facebookPage.name} (Facebook)`
+                        : "Unknown account"}
                   </span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${

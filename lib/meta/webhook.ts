@@ -41,6 +41,22 @@ export interface WebhookCommentEvent {
   mediaId: string;
 }
 
+export interface WebhookFacebookCommentEvent {
+  pageId: string;
+  commentId: string;
+  commentText: string;
+  commenterId: string;
+  commenterName?: string;
+  postId: string;
+}
+
+export interface WebhookFacebookMessageEvent {
+  pageId: string;
+  messageId: string;
+  messageText: string;
+  senderId: string;
+}
+
 interface WebhookEntry {
   id: string;
   time: number;
@@ -53,11 +69,20 @@ interface WebhookEntry {
       from?: {
         id?: string;
         username?: string;
+        name?: string;
       };
       media?: {
         id?: string;
       };
       media_id?: string;
+      // Facebook Page "feed" change shape (comments field name/payload differ
+      // from Instagram's "comments" field — NOT verified against a real
+      // webhook yet, see parseFacebookCommentEvents below).
+      item?: string;
+      verb?: string;
+      comment_id_alt?: string;
+      post_id?: string;
+      message?: string;
     };
   }>;
   messaging?: Array<{
@@ -245,6 +270,103 @@ export function parseReadEvents(payload: WebhookPayload): WebhookReadEvent[] {
         instagramAccountId: accountId,
         userId,
         watermark: messaging.read.watermark,
+      });
+    }
+  }
+
+  return events;
+}
+
+// ─── Facebook Page (comments + Messenger) ──────────────────────────────────
+//
+// Deliberately separate from the Instagram parsers above, not unified — the
+// two platforms' webhook payload shapes differ enough (see the "feed" vs
+// "comments" field name below) that a shared parser would need
+// channel-conditional branching internally anyway. Same duplicate-then-adapt
+// call as lib/meta/client.ts's Facebook send functions.
+
+/**
+ * Parse Facebook Page comment events out of a webhook payload.
+ *
+ * NOT VERIFIED against a real webhook yet. Meta's documented shape for a
+ * Page's comment webhook is the "feed" field with `value.item === "comment"`
+ * and `value.verb === "add"` — a different field name and shape than
+ * Instagram's dedicated "comments" field. Confirm this against a real
+ * comment on a connected Page before trusting it in production (same
+ * discipline as the Facebook comment-reply endpoint in lib/meta/client.ts —
+ * don't assume the docs, check a live event).
+ */
+export function parseFacebookCommentEvents(
+  payload: WebhookPayload
+): WebhookFacebookCommentEvent[] {
+  const events: WebhookFacebookCommentEvent[] = [];
+
+  if (payload.object !== "page") return events;
+
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      if (change.field !== "feed") continue;
+
+      const value = change.value;
+      if (value.item !== "comment" || value.verb !== "add") continue;
+
+      const commentId = value.comment_id ?? value.id;
+      const postId = value.post_id ?? value.media_id;
+      const commenterId = value.from?.id;
+
+      if (!entry.id || !commentId || !postId || !commenterId) continue;
+      // Skip the Page's own comments (staff replying manually) — same guard
+      // as parseCommentEvents for Instagram.
+      if (commenterId === entry.id) continue;
+
+      events.push({
+        pageId: entry.id,
+        commentId,
+        commentText: value.message ?? value.text ?? "",
+        commenterId,
+        commenterName: value.from?.name,
+        postId,
+      });
+    }
+  }
+
+  return events;
+}
+
+/**
+ * Parse inbound Facebook Messenger DMs out of a webhook payload. The
+ * `entry[].messaging[]` shape is the Messenger Platform format — the same
+ * schema Instagram DMs already reuse (see parseMessageEvents above), so this
+ * mirrors it directly rather than guessing at a different shape.
+ */
+export function parseFacebookMessageEvents(
+  payload: WebhookPayload
+): WebhookFacebookMessageEvent[] {
+  const events: WebhookFacebookMessageEvent[] = [];
+
+  if (payload.object !== "page") return events;
+
+  for (const entry of payload.entry ?? []) {
+    for (const messaging of entry.messaging ?? []) {
+      const message = messaging.message;
+      if (!message) continue;
+      if (message.is_echo || message.is_deleted || message.is_unsupported) {
+        continue;
+      }
+
+      const text = message.text?.trim();
+      const messageId = message.mid;
+      const senderId = messaging.sender?.id;
+      const pageId = entry.id ?? messaging.recipient?.id;
+
+      if (!text || !messageId || !senderId || !pageId) continue;
+      if (senderId === pageId) continue;
+
+      events.push({
+        pageId,
+        messageId,
+        messageText: text,
+        senderId,
       });
     }
   }

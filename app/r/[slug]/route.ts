@@ -27,17 +27,25 @@ export async function GET(request: NextRequest, { params }: RedirectRouteProps) 
     return NextResponse.redirect(new URL("/", request.url), { status: 302 });
   }
 
-  await prisma.linkClick.create({
-    data: {
-      workspaceId: trackedLink.workspaceId,
-      automationId: trackedLink.automationId,
-      instagramAccountId: trackedLink.automation.instagramAccountId,
-      trackedLinkId: trackedLink.id,
-      ipHash: hashClickIp(getRequestIp(request)),
-      userAgent: request.headers.get("user-agent"),
-      referrer: request.headers.get("referer"),
-    },
-  });
+  // Tracked links are only ever created for Instagram automations in this
+  // phase (Facebook automations don't get trackedLinks yet — see the schema
+  // comment on FacebookPage). A null instagramAccountId here means the
+  // click's parent automation somehow targets Facebook instead — redirect
+  // the visitor regardless, just skip the analytics row rather than crash on
+  // a LinkClick.instagramAccountId that has no value to record.
+  if (trackedLink.automation.instagramAccountId) {
+    await prisma.linkClick.create({
+      data: {
+        workspaceId: trackedLink.workspaceId,
+        automationId: trackedLink.automationId,
+        instagramAccountId: trackedLink.automation.instagramAccountId,
+        trackedLinkId: trackedLink.id,
+        ipHash: hashClickIp(getRequestIp(request)),
+        userAgent: request.headers.get("user-agent"),
+        referrer: request.headers.get("referer"),
+      },
+    });
+  }
 
   return NextResponse.redirect(trackedLink.destinationUrl, { status: 302 });
 }
