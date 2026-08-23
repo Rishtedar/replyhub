@@ -267,22 +267,6 @@ export default function FacebookCampaignBuilder({
     );
   }
 
-  if (pages.length === 0) {
-    return (
-      <div className="panel rounded p-8 text-center">
-        <p className="text-sm text-muted">
-          Connect a Facebook Page in Settings before creating a Facebook campaign.
-        </p>
-        <a
-          href="/settings"
-          className="mt-4 inline-block rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
-        >
-          Go to Settings
-        </a>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
