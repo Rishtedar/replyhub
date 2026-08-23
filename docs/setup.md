@@ -98,7 +98,9 @@ Copy `.env.example` to `.env` for local work, or set these in Vercel and Railway
 | `META_GRAPH_API_VERSION` | Graph API version, for example `v25.0`. |
 | `INSTAGRAM_APP_ID` | From the Meta app, see Step 6. |
 | `INSTAGRAM_APP_SECRET` | From the Meta app. |
+| `FACEBOOK_APP_ID` | From the Meta app, Basic settings. Separate numeric ID from `INSTAGRAM_APP_ID`. |
 | `FACEBOOK_APP_SECRET` | From the Meta app. |
+| `FACEBOOK_LOGIN_CONFIG_ID` | From the Meta app, see "Facebook Page setup" below. Required — connecting a Page fails with an empty result if this is missing, see that section for why. |
 | `WEBHOOK_VERIFY_TOKEN` | Any random string. You paste the same value into Meta's webhook config. |
 
 `ENCRYPTION_KEY` must be exactly 64 hex characters or the app throws on boot.
@@ -122,7 +124,9 @@ Go to [developers.facebook.com/apps](https://developers.facebook.com/apps) and c
 - App type: Business.
 - Contact email: one you actually check.
 
-When it asks you to add a use case, filter to All, then choose Manage messaging and content on Instagram. Do not pick "Create and manage ads with Marketing API", and do not pick "Authenticate with Facebook Login". OpenReply uses Instagram Login. Picking the Facebook Login variant makes the OAuth flow fail later with a mismatched client error.
+When it asks you to add a use case, filter to All, then choose Manage messaging and content on Instagram. Do not pick "Create and manage ads with Marketing API" — it has its own heavy review requirements and can block publishing.
+
+If you also want the Facebook Page channel (Messenger + Page comment replies, not just Instagram), also add "Interact with customers on Messenger from Meta" as a use case, and add the "Facebook Login for Business" product from the left sidebar. See "Facebook Page setup" further down for the extra steps this needs — it is not a drop-in extension of the Instagram OAuth flow, the two use a structurally different authorization dialog.
 
 If you accidentally added the Marketing API use case, remove it. It has its own heavy review requirements and can block publishing.
 
@@ -219,6 +223,39 @@ The fix for your own accounts is the same two-part dance as Step 6, once per acc
 You do not have to do anything here; OpenReply handles it. It is worth understanding because it is invisible when it goes wrong.
 
 Meta's `/me` returns two IDs. The `id` field is app-scoped. The `user_id` field is the Instagram professional account ID. Webhooks put `user_id` in `entry.id`, and the messaging API keys off `user_id` too. OpenReply stores `user_id`, so a fresh connection matches correctly. If you upgraded from a very old build and an account was stored with the wrong ID, disconnect and reconnect it once.
+
+## Facebook Page setup
+
+Optional, only needed if you also want Messenger DMs and Page comment replies (not just Instagram). This is not a copy of the Instagram flow above — Facebook Login uses a structurally different authorization dialog, and the setup below exists specifically to handle Pages that live inside a Meta Business Portfolio, which is the normal case for any business with more than one location.
+
+### Why this needs its own configuration, not just a scope list
+
+The obvious approach — send `client_id` + a comma-separated `scope` string to `facebook.com/dialog/oauth`, same shape as the Instagram flow — works for a Page a person administers directly through the legacy per-Page role system. It silently fails for a Page assigned through a Business Portfolio (Business Manager → Business Settings → Pages), even when that person has full "Acceso total" on the Page there. The authorization succeeds, the token exchange succeeds, and then `GET /me/accounts` — the call that lists which Pages the token can act on — returns zero results. There is no error, just an empty list, which the app surfaces as "Connect a Facebook Page to launch Messenger/comment campaigns for it" staying stuck on "Not connected."
+
+The fix is Meta's own "Facebook Login for Business" product, authorized with a `config_id` instead of a `scope` param. It shows Meta's own asset picker during authorization — the person explicitly selects which Page(s) to share — and that explicit grant is what makes the Page show up in `/me/accounts` afterward. Same permissions, structurally different dialog.
+
+### Create the Business Login configuration
+
+1. In the Meta App dashboard, add the "Facebook Login for Business" product (left sidebar) if it is not there yet.
+2. Facebook Login for Business → Configuraciones → Crear configuración.
+3. Name it anything (e.g. "Page connect"). Variación de inicio de sesión: General.
+4. Token de acceso: "Token de acceso de usuario" — not "Token de acceso de usuario del sistema". The system-user variant needs a Business Portfolio login of its own and does not match how this app's code fetches Pages (`getFacebookPages()` in `lib/meta/oauth.ts` calls `/me/accounts` with a normal user token). Picking the system-user variant here would need a different code path, not just a different config.
+5. Permisos: select exactly `pages_show_list`, `pages_messaging`, `pages_manage_metadata`, `pages_read_engagement`. Do not add `pages_manage_posts` — this app never publishes a Page post (no `/{page-id}/feed` call anywhere, only `POST /{comment-id}/comments` to reply to existing comments, which `pages_read_engagement` covers), and requesting an unused permission the app was never granted makes Meta reject the whole dialog with "Invalid Scopes."
+6. Crear. Copy the "Identificador de configuración" — that numeric ID is `FACEBOOK_LOGIN_CONFIG_ID`.
+
+### Register the redirect URI
+
+Facebook Login for Business → Configurar (a different page from the configuration above — this is the product's OAuth client settings). Under "URI de redireccionamiento de OAuth válidos", add:
+
+```
+https://your-app.vercel.app/api/facebook/callback
+```
+
+This is a separate allowlist from Instagram's redirect URI in Step 7 — the two products validate independently.
+
+### Connect a Page
+
+From Settings in the app, "Connect Facebook Page". Meta's asset picker appears; pick the Page. If the person has access to more than one Page inside the same Business Portfolio, the app currently fails closed (`?facebook=multiple_pages`) rather than guessing — connecting more than one Page per authorization needs a picker UI on our side that has not been built yet (phase-1 scope decision, see `memory/social_autoreply_project.md` if you have it, or just build the picker if you're past that phase).
 
 ## Test it end to end
 

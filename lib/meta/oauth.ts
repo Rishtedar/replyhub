@@ -173,17 +173,26 @@ export function getFacebookAuthorizationUrl(
   redirectUri: string,
   state: string
 ): string {
+  // Uses a Business Login configuration (config_id) instead of a plain
+  // `scope` param. This isn't cosmetic: for a Page that lives inside a
+  // Meta Business Portfolio (as opposed to one a person administers
+  // directly via the legacy per-Page role system), the classic
+  // client_id+scope OAuth dialog silently returns zero Pages from
+  // /me/accounts even when the person has full access via the portfolio —
+  // confirmed against a real Business-owned Page (same failure mode
+  // already known from the Zavu integration, see
+  // memory/social_autoreply_project.md). The config_id flow instead shows
+  // Meta's own asset picker, so the person explicitly grants the specific
+  // Page(s) — that grant is what makes them show up afterward. The
+  // permission set (pages_show_list/pages_messaging/pages_manage_metadata/
+  // pages_read_engagement — the same four scopes as before, still
+  // deliberately without pages_manage_posts) lives on the config itself in
+  // the Meta App dashboard, not in this URL — `scope` is dropped on
+  // purpose when config_id is present.
   const params = new URLSearchParams({
     client_id: requireEnv("FACEBOOK_APP_ID"),
     redirect_uri: redirectUri,
-    // pages_manage_posts is deliberately excluded — this app never creates
-    // Page posts (no /{page-id}/feed call anywhere), only replies to
-    // existing comments (POST /{comment-id}/comments, covered by
-    // pages_read_engagement) and manages Messenger. Requesting it made Meta
-    // reject the whole OAuth dialog with "Invalid Scopes" since the app was
-    // never granted that permission.
-    scope:
-      "pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement",
+    config_id: requireEnv("FACEBOOK_LOGIN_CONFIG_ID"),
     response_type: "code",
     state,
   });

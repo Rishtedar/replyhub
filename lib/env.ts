@@ -59,6 +59,7 @@ export function getMetaGraphApiVersion(): string {
 const FACEBOOK_OAUTH_ENV = [
   "FACEBOOK_APP_ID",
   "FACEBOOK_APP_SECRET",
+  "FACEBOOK_LOGIN_CONFIG_ID",
   "ENCRYPTION_KEY",
   "NEXTAUTH_SECRET",
 ] as const;
@@ -81,6 +82,7 @@ export const serverEnvSchema = z.object({
   INSTAGRAM_APP_SECRET: z.string().min(1),
   FACEBOOK_APP_ID: z.string().min(1),
   FACEBOOK_APP_SECRET: z.string().min(1),
+  FACEBOOK_LOGIN_CONFIG_ID: z.string().min(1),
   WEBHOOK_VERIFY_TOKEN: z.string().min(1),
 });
 
