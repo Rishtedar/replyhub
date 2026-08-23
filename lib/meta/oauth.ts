@@ -176,8 +176,14 @@ export function getFacebookAuthorizationUrl(
   const params = new URLSearchParams({
     client_id: requireEnv("FACEBOOK_APP_ID"),
     redirect_uri: redirectUri,
+    // pages_manage_posts is deliberately excluded — this app never creates
+    // Page posts (no /{page-id}/feed call anywhere), only replies to
+    // existing comments (POST /{comment-id}/comments, covered by
+    // pages_read_engagement) and manages Messenger. Requesting it made Meta
+    // reject the whole OAuth dialog with "Invalid Scopes" since the app was
+    // never granted that permission.
     scope:
-      "pages_show_list,pages_messaging,pages_manage_metadata,pages_manage_posts,pages_read_engagement",
+      "pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement",
     response_type: "code",
     state,
   });
