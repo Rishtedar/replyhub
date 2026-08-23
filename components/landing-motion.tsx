@@ -1,33 +1,26 @@
 "use client";
 
-import { motion, type Variants } from "framer-motion";
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 
-const item: Variants = {
-  hidden: { opacity: 0, y: 28 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
-};
-
+/* El contenido de la landing SIEMPRE se renderiza visible — nunca depende
+   de que React hidrate para mostrarse. `Reveal`/`RevealGroup` existían
+   antes con `initial={{opacity:0}}` + `whileInView`, lo que Next.js
+   horneaba como opacity:0 en el HTML servido por SSR: en desktop la
+   hidratación es tan rápida que no se notaba, pero en un celular con CPU
+   más lenta (o cualquier falla de hidratación) la página se quedaba
+   completamente en negro hasta que el JS terminara de correr. Se
+   mantienen como wrappers simples (sin animación) para no tener que tocar
+   cada sección de app/page.tsx. */
 export function Reveal({
   children,
   className,
-  delay = 0,
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
 }) {
-  return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 28 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.6, ease: "easeOut", delay }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 export function RevealGroup({
@@ -37,28 +30,14 @@ export function RevealGroup({
   children: ReactNode;
   className?: string;
 }) {
-  return (
-    <motion.div
-      className={className}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-80px" }}
-      variants={{ show: { transition: { staggerChildren: 0.1 } } }}
-    >
-      {Array.isArray(children)
-        ? children.map((child, i) => (
-            <motion.div key={i} variants={item}>
-              {child}
-            </motion.div>
-          ))
-        : children}
-    </motion.div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 /* Resplandor ambiental fijo detrás del contenido — el mismo tipo de
-   detalle "premium" que usan los landing de referencia (hojacero),
-   sin animación llamativa ni impacto en la legibilidad. */
+   detalle "premium" que usan los landing de referencia (hojacero). Es
+   puramente decorativo (no oculta ni condiciona el texto), así que no
+   tiene el mismo riesgo: si la animación no corre, los círculos igual se
+   ven, solo sin el pulso. */
 export function LandingMotion() {
   return (
     <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
