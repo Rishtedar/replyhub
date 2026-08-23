@@ -2,54 +2,46 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Terms of Service - AutoReply",
+  title: "Términos de Servicio - AutoReply",
   description:
-    "Terms for using AutoReply's Instagram and Facebook Page comment/Messenger-to-DM campaign software.",
+    "Términos para usar el software de campañas de comentario/Messenger a DM de Instagram y Facebook de AutoReply.",
 };
 
 export default function TermsPage() {
   return (
     <LegalShell
-      title="Terms of Service"
-      description="These terms define acceptable use for AutoReply's hosted Instagram and Facebook Page comment/Messenger-to-DM campaign service."
-      updatedAt="August 23, 2026"
+      title="Términos de Servicio"
+      description="Estos términos definen el uso aceptable del servicio de campañas de comentario/Messenger a DM de Instagram y Facebook de AutoReply."
+      updatedAt="23 de agosto de 2026"
     >
       <section>
-        <h2 className="text-xl font-bold text-white">Authorized Use</h2>
+        <h2 className="text-xl font-bold text-white">Uso autorizado</h2>
         <p className="mt-3">
-          You may use AutoReply only with Instagram professional accounts and
-          Facebook Pages you own or are authorized to manage. You are
-          responsible for the campaigns, keywords, links, and messages you
-          configure.
+          Puedes usar AutoReply solo con cuentas profesionales de Instagram y
+          Páginas de Facebook que sean tuyas o que estés autorizado a
+          administrar. Eres responsable de las campañas, palabras clave,
+          enlaces y mensajes que configures.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-white">Platform Compliance</h2>
+        <h2 className="text-xl font-bold text-white">Cumplimiento de la plataforma</h2>
         <p className="mt-3">
-          You agree to follow Meta Platform Terms, Instagram and Facebook
-          policies, applicable messaging rules, privacy laws, advertising
-          rules, and anti-spam laws. AutoReply may rate-limit, pause, or
-          disable campaigns that create compliance, abuse, security, or
-          deliverability risk.
+          Aceptas cumplir con los Términos de Plataforma de Meta, las políticas
+          de Instagram y Facebook, las reglas de mensajería aplicables, leyes
+          de privacidad, reglas de publicidad, y leyes anti-spam. AutoReply
+          puede limitar la frecuencia, pausar, o deshabilitar campañas que
+          generen riesgo de cumplimiento, abuso, seguridad, o entregabilidad.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-white">Availability</h2>
+        <h2 className="text-xl font-bold text-white">Disponibilidad</h2>
         <p className="mt-3">
-          AutoReply depends on third-party platforms including Meta, email,
-          hosting, database, and queue providers. We work to operate the
-          service reliably, but uninterrupted availability is not guaranteed.
-        </p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-bold text-white">Open-Source Core</h2>
-        <p className="mt-3">
-          The public repository is MIT licensed. Hosted SaaS infrastructure,
-          managed support, agency workflows, analytics, reports, and other paid
-          service features may be provided separately from the open-source core.
+          AutoReply depende de plataformas de terceros incluyendo Meta, email,
+          hosting, base de datos, y proveedores de cola. Trabajamos para operar
+          el servicio de forma confiable, pero no se garantiza disponibilidad
+          ininterrumpida.
         </p>
       </section>
     </LegalShell>

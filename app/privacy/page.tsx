@@ -2,76 +2,77 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy - AutoReply",
+  title: "Política de Privacidad - AutoReply",
   description:
-    "How AutoReply handles Instagram and Facebook Page account data, webhook payloads, billing data, and customer campaign information.",
+    "Cómo AutoReply maneja los datos de cuentas de Instagram y Página de Facebook, payloads de webhook, datos de facturación e información de campañas.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalShell
-      title="Privacy Policy"
-      description="AutoReply helps businesses send Meta-compliant private replies and Messenger DMs when people comment on connected Instagram posts, reels, or Facebook Page posts, or message the Page directly."
-      updatedAt="August 23, 2026"
+      title="Política de Privacidad"
+      description="AutoReply ayuda a negocios a enviar respuestas privadas y DMs de Messenger conforme a las políticas de Meta cuando alguien comenta en publicaciones o reels de Instagram conectados, en publicaciones de una Página de Facebook, o escribe directamente a la Página."
+      updatedAt="23 de agosto de 2026"
     >
       <section>
-        <h2 className="text-xl font-bold text-white">Data We Collect</h2>
+        <h2 className="text-xl font-bold text-white">Datos que recopilamos</h2>
         <p className="mt-3">
-          We collect account email addresses for authentication, workspace and
-          billing metadata, connected Instagram account and Facebook Page
-          identifiers, encrypted Instagram and Facebook Page access tokens,
-          campaign settings, webhook payloads, comments and Messenger messages
-          needed to process campaigns, delivery logs, and operational
-          diagnostics.
+          Recopilamos el email de la cuenta para autenticación, metadata del
+          workspace y facturación, identificadores de la cuenta de Instagram y
+          la Página de Facebook conectadas, tokens de acceso de Instagram y
+          Facebook cifrados, configuración de campañas, payloads de webhook,
+          comentarios y mensajes de Messenger necesarios para procesar las
+          campañas, registros de envío, y diagnósticos operacionales.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-white">How We Use Data</h2>
+        <h2 className="text-xl font-bold text-white">Cómo usamos los datos</h2>
         <p className="mt-3">
-          We use this data to authenticate users, connect Instagram and
-          Facebook Page integrations, match comment and message keywords, send
-          private replies and Messenger DMs through the official Meta APIs,
-          prevent duplicate sends, troubleshoot failures, and protect the
-          service.
+          Usamos estos datos para autenticar usuarios, conectar las
+          integraciones de Instagram y Facebook, hacer coincidir palabras clave
+          en comentarios y mensajes, enviar respuestas privadas y DMs de
+          Messenger a través de las APIs oficiales de Meta, prevenir envíos
+          duplicados, resolver fallas, y proteger el servicio.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-white">Instagram And Meta Data</h2>
+        <h2 className="text-xl font-bold text-white">Datos de Instagram y Meta</h2>
         <p className="mt-3">
-          AutoReply does not ask for Instagram or Facebook passwords, scrape
-          either platform, or use browser automation. Instagram and Facebook
-          Page tokens are encrypted at rest and are used only to perform
-          actions authorized by the connected business account or Page.
+          AutoReply no pide contraseñas de Instagram o Facebook, no hace
+          scraping de ninguna plataforma, ni usa automatización de navegador.
+          Los tokens de Instagram y de la Página de Facebook están cifrados en
+          reposo y se usan solo para realizar acciones autorizadas por la
+          cuenta de negocio o Página conectada.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-white">Subprocessors</h2>
+        <h2 className="text-xl font-bold text-white">Subprocesadores</h2>
         <p className="mt-3">
-          The production service may use hosting, database, Redis queue, email,
-          and observability providers such as Vercel, Railway, PostgreSQL,
-          Redis, and Resend. These providers process data only as needed to run
-          the service.
+          El servicio en producción puede usar proveedores de hosting, base de
+          datos, cola Redis, email, y observabilidad como Vercel, Railway,
+          PostgreSQL, Redis, y Resend. Estos proveedores procesan datos solo lo
+          necesario para operar el servicio.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-white">Retention And Deletion</h2>
+        <h2 className="text-xl font-bold text-white">Retención y eliminación</h2>
         <p className="mt-3">
-          Customers can disconnect Instagram or a Facebook Page from settings,
-          which removes the stored connection and stops campaigns for it. For
-          account or data deletion, follow the Data Deletion page linked from
-          the footer.
+          Los clientes pueden desconectar Instagram o una Página de Facebook
+          desde Configuración, lo que elimina la conexión guardada y detiene
+          las campañas de esa cuenta. Para eliminar cuenta o datos completos,
+          sigue la página de Eliminación de Datos enlazada en el pie de página.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-white">Contact</h2>
+        <h2 className="text-xl font-bold text-white">Contacto</h2>
         <p className="mt-3">
-          For privacy questions, contact the repository owner through GitHub or
-          the support email configured for the hosted AutoReply service.
+          Para consultas de privacidad, contacta a soporte desde el email con
+          el que inicias sesión en el servicio.
         </p>
       </section>
     </LegalShell>

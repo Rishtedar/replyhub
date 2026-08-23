@@ -341,12 +341,6 @@ export default function Home() {
 
           <div className="flex items-center gap-6">
             <Link
-              href="/manychat-alternative"
-              className="hidden text-sm font-medium text-zinc-400 transition hover:text-white sm:block"
-            >
-              vs. ManyChat
-            </Link>
-            <Link
               href="/login"
               className="inline-flex items-center justify-center gap-2 border border-white/15 px-4 py-2 text-sm font-bold text-white transition hover:border-white hover:bg-white hover:text-zinc-950"
             >
@@ -525,25 +519,6 @@ export default function Home() {
         </RevealGroup>
       </section>
 
-      <section className="border-y border-white/10 bg-white/[0.015] py-16">
-        <Reveal className="mx-auto flex w-full max-w-6xl flex-col items-start justify-between gap-6 px-5 sm:flex-row sm:items-center sm:px-6 lg:px-8">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.15em] text-orange-400">
-              ¿Vienes de ManyChat?
-            </p>
-            <h2 className="mt-3 text-2xl font-bold text-white sm:text-3xl">
-              Mira la comparación línea por línea
-            </h2>
-          </div>
-          <Link
-            href="/manychat-alternative"
-            className="inline-flex shrink-0 items-center justify-center gap-2 border border-white/15 px-6 py-3 text-sm font-bold text-white transition hover:border-white hover:bg-white hover:text-zinc-950"
-          >
-            Ver comparación
-          </Link>
-        </Reveal>
-      </section>
-
       <section className="mx-auto w-full max-w-6xl px-5 pb-24 pt-20 sm:px-6 lg:px-8">
         <Reveal className="border border-orange-500/20 bg-gradient-to-br from-orange-500/[0.08] to-transparent p-8 text-center sm:p-16">
           <h2 className="mx-auto max-w-3xl text-balance text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl [font-family:var(--font-display)]">
@@ -570,9 +545,6 @@ export default function Home() {
             AutoReply
           </span>
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-            <Link href="/manychat-alternative" className="transition hover:text-white">
-              vs. ManyChat
-            </Link>
             <Link href="/privacy" className="transition hover:text-white">
               Privacidad
             </Link>
