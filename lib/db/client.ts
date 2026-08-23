@@ -11,8 +11,14 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL environment variable is required");
   }
 
+  // The pg driver adapter connects with plain node-postgres, which (unlike
+  // Prisma's own query engine) does not honor a `?schema=` query param on the
+  // connection string — it must be passed explicitly here or every query
+  // silently falls back to the `public` schema.
+  const schema = new URL(databaseUrl).searchParams.get("schema") ?? undefined;
+
   return new PrismaClient({
-    adapter: new PrismaPg(databaseUrl),
+    adapter: new PrismaPg(databaseUrl, schema ? { schema } : undefined),
   });
 }
 
