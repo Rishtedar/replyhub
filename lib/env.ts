@@ -15,7 +15,10 @@ export function requireEnv(name: string): string {
 }
 
 export function getBaseUrl(): string {
-  return process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  // `||` on purpose, not `??` — an env var set to an empty string in the
+  // hosting dashboard (as opposed to genuinely unset) must still fall back,
+  // or every relative redirect built from this becomes an invalid URL.
+  return process.env.NEXTAUTH_URL || "http://localhost:3000";
 }
 
 export function getEncryptionKeyHex(): string {
@@ -47,7 +50,8 @@ export function getMissingInstagramOAuthEnv(): string[] {
 }
 
 export function getMetaGraphApiVersion(): string {
-  return process.env.META_GRAPH_API_VERSION ?? "v25.0";
+  // Same `||` reasoning as getBaseUrl() above.
+  return process.env.META_GRAPH_API_VERSION || "v25.0";
 }
 
 // Same rationale as getMissingInstagramOAuthEnv above, for the Facebook Page
