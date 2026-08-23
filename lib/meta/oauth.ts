@@ -261,10 +261,40 @@ export interface FacebookManagedPage {
  * already-long-lived Page access token (a Page token derived from a
  * long-lived user token doesn't expire on its own — no separate refresh flow
  * needed, unlike Instagram's tokenExpiresAt).
+ *
+ * Does NOT use GET /me/accounts. Confirmed against a real Page that lives
+ * inside a Meta Business Portfolio: even with pages_show_list genuinely
+ * granted (verified via /me/permissions), even picking that exact Page in
+ * Meta's own Business Login asset picker, /me/accounts still returns an
+ * empty list for it — no error, just nothing. Querying the Page node
+ * directly by ID (GET /{page-id}?fields=id,name,access_token) with the same
+ * user token works fine and returns a real Page access token, so the access
+ * is real; /me/accounts is just an edge that doesn't enumerate
+ * Business-Portfolio-assigned Pages reliably.
+ *
+ * The IDs a person actually granted through the asset picker are recovered
+ * from GET /debug_token's `granular_scopes` instead — Meta's own record of
+ * which specific asset IDs a config_id-based authorization covers,
+ * independent of whatever /me/accounts does or doesn't list. Each granted ID
+ * is then resolved individually via the direct Page-node query above.
+ *
+ * Falls back to the old /me/accounts call when a token has no
+ * granular_scopes at all (e.g. a self-hoster using classic scope-based
+ * Facebook Login instead of a Business Login config, where this
+ * Business-Portfolio quirk doesn't apply and /me/accounts works normally).
  */
 export async function getFacebookPages(
   userAccessToken: string
 ): Promise<FacebookManagedPage[]> {
+  const grantedPageIds = await getGrantedPageIdsFromToken(userAccessToken);
+
+  if (grantedPageIds.length > 0) {
+    const pages = await Promise.all(
+      grantedPageIds.map((pageId) => getFacebookPageById(pageId, userAccessToken))
+    );
+    return pages.filter((page): page is FacebookManagedPage => page !== null);
+  }
+
   const url = new URL(facebookGraphUrl("/me/accounts"));
   url.searchParams.set("access_token", userAccessToken);
   url.searchParams.set("fields", "id,name,access_token");
@@ -279,4 +309,55 @@ export async function getFacebookPages(
 
   const data = await response.json();
   return (data.data ?? []) as FacebookManagedPage[];
+}
+
+interface GranularScope {
+  scope: string;
+  target_ids?: string[];
+}
+
+async function getGrantedPageIdsFromToken(
+  userAccessToken: string
+): Promise<string[]> {
+  const url = new URL(facebookGraphUrl("/debug_token"));
+  url.searchParams.set("input_token", userAccessToken);
+  url.searchParams.set(
+    "access_token",
+    `${requireEnv("FACEBOOK_APP_ID")}|${requireEnv("FACEBOOK_APP_SECRET")}`
+  );
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    // Non-fatal: callers fall back to /me/accounts on an empty array.
+    return [];
+  }
+
+  const data = await response.json();
+  const granularScopes: GranularScope[] = data.data?.granular_scopes ?? [];
+  const pageIds = new Set<string>();
+  for (const entry of granularScopes) {
+    if (entry.scope.startsWith("pages_")) {
+      for (const id of entry.target_ids ?? []) {
+        pageIds.add(id);
+      }
+    }
+  }
+
+  return [...pageIds];
+}
+
+async function getFacebookPageById(
+  pageId: string,
+  userAccessToken: string
+): Promise<FacebookManagedPage | null> {
+  const url = new URL(facebookGraphUrl(`/${pageId}`));
+  url.searchParams.set("fields", "id,name,access_token");
+  url.searchParams.set("access_token", userAccessToken);
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    return null;
+  }
+
+  return (await response.json()) as FacebookManagedPage;
 }
