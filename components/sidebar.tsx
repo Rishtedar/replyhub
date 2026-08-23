@@ -10,13 +10,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Overview", href: "/overview" },
-  { label: "Inbox", href: "/inbox" },
-  { label: "Campaigns", href: "/campaigns" },
-  { label: "DM Logs", href: "/logs" },
-  { label: "Settings", href: "/settings" },
-  { label: "Diagnostics", href: "/diagnostics" },
+  { label: "Panel", href: "/dashboard" },
+  { label: "Resumen", href: "/overview" },
+  { label: "Bandeja", href: "/inbox" },
+  { label: "Campañas", href: "/campaigns" },
+  { label: "Registro de DMs", href: "/logs" },
+  { label: "Configuración", href: "/settings" },
+  { label: "Diagnóstico", href: "/diagnostics" },
 ];
 
 interface SidebarProps {
@@ -57,7 +57,7 @@ export default function Sidebar({
           style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top))" }}
         >
           <Link href="/dashboard" className="text-base font-semibold">
-            OpenReply
+            AutoReply
           </Link>
         </div>
 
@@ -88,7 +88,6 @@ export default function Sidebar({
 
         <div className="px-5 py-4 border-t border-border">
           <p className="text-sm text-foreground truncate">{workspaceName}</p>
-          <p className="text-xs text-muted">Self-hosted</p>
         </div>
       </aside>
     </>

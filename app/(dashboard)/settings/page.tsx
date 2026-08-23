@@ -104,7 +104,7 @@ export default function SettingsPage() {
       setLlmSaved(true);
       window.setTimeout(() => setLlmSaved(false), 2000);
     } else {
-      setLlmError(payload.error ?? "Could not save AI fallback settings");
+      setLlmError(payload.error ?? "No se pudo guardar la configuración de respaldo con IA");
     }
     setBusy(null);
   }
@@ -116,7 +116,7 @@ export default function SettingsPage() {
   }
 
   async function disconnectInstagram(instagramAccountId: string) {
-    if (!confirm("Disconnect Instagram? Campaigns for this account will stop sending DMs.")) {
+    if (!confirm("¿Desconectar Instagram? Las campañas de esta cuenta dejarán de enviar DMs.")) {
       return;
     }
 
@@ -130,7 +130,7 @@ export default function SettingsPage() {
   }
 
   async function disconnectFacebook(facebookPageId: string) {
-    if (!confirm("Disconnect this Facebook Page? Campaigns for it will stop sending DMs.")) {
+    if (!confirm("¿Desconectar esta Página de Facebook? Sus campañas dejarán de enviar DMs.")) {
       return;
     }
 
@@ -157,7 +157,7 @@ export default function SettingsPage() {
       setMembersData(payload.data);
       setInviteEmail("");
     } else {
-      setMemberError(payload.error ?? "Could not invite member");
+      setMemberError(payload.error ?? "No se pudo invitar al miembro");
     }
     setBusy(null);
   }
@@ -196,14 +196,14 @@ export default function SettingsPage() {
       </Suspense>
 
       <section className="panel rounded p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-6">Instagram Connection</h2>
+        <h2 className="text-base font-semibold mb-6">Conexión de Instagram</h2>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
             <div>
-              <p className="text-sm font-medium text-foreground">Status</p>
+              <p className="text-sm font-medium text-foreground">Estado</p>
               <p className="text-xs text-muted mt-0.5">
-                Comment webhooks and private replies depend on this connection.
+                Los webhooks de comentarios y las respuestas privadas dependen de esta conexión.
               </p>
             </div>
             <span
@@ -213,27 +213,26 @@ export default function SettingsPage() {
                   : "bg-warning/10 text-warning"
               }`}
             >
-              {accounts.length > 0 ? "Connected" : "Not connected"}
+              {accounts.length > 0 ? "Conectado" : "No conectado"}
             </span>
           </div>
 
           <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
             <div>
-              <p className="text-sm font-medium text-foreground">Accounts</p>
+              <p className="text-sm font-medium text-foreground">Cuentas</p>
               <p className="text-xs text-muted mt-0.5">
-                {accounts.length} connected Instagram profile
-                {accounts.length === 1 ? "" : "s"}
+                {accounts.length} perfil{accounts.length === 1 ? "" : "es"} de Instagram conectado{accounts.length === 1 ? "" : "s"}
               </p>
             </div>
             <span className="text-sm text-muted">
-              {accounts.length > 0 ? `${accounts.length} connected` : "None"}
+              {accounts.length > 0 ? `${accounts.length} conectado${accounts.length === 1 ? "" : "s"}` : "Ninguna"}
             </span>
           </div>
 
           <div className="space-y-3 py-3">
             {accounts.length === 0 && (
               <p className="text-sm text-muted">
-                Connect an Instagram professional account to launch campaigns.
+                Conecta una cuenta profesional de Instagram para lanzar campañas.
               </p>
             )}
             {accounts.map((account) => (
@@ -246,11 +245,11 @@ export default function SettingsPage() {
                     @{account.username}
                   </p>
                   <p className="mt-1 text-xs text-muted">
-                    Token expires{" "}
+                    Token vence{" "}
                     {account.tokenExpiresAt
                       ? new Date(account.tokenExpiresAt).toLocaleDateString()
-                      : "not available"}{" "}
-                    · {account.webhookSubscribed ? "Webhook ready" : "Webhook pending"}
+                      : "no disponible"}{" "}
+                    · {account.webhookSubscribed ? "Webhook listo" : "Webhook pendiente"}
                   </p>
                 </div>
                 <button
@@ -259,8 +258,8 @@ export default function SettingsPage() {
                   className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
                 >
                   {busy === `disconnect:${account.id}`
-                    ? "Disconnecting..."
-                    : "Disconnect"}
+                    ? "Desconectando..."
+                    : "Desconectar"}
                 </button>
               </div>
             ))}
@@ -272,20 +271,20 @@ export default function SettingsPage() {
             href="/api/instagram/connect"
             className="px-4 py-2 rounded text-sm font-medium transition-colors bg-accent text-white hover:bg-accent-hover"
           >
-            {accounts.length > 0 ? "Connect another account" : "Connect Instagram"}
+            {accounts.length > 0 ? "Conectar otra cuenta" : "Conectar Instagram"}
           </a>
         </div>
       </section>
 
       <section className="panel rounded p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-6">Facebook Page Connection</h2>
+        <h2 className="text-base font-semibold mb-6">Conexión de Página de Facebook</h2>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
             <div>
-              <p className="text-sm font-medium text-foreground">Status</p>
+              <p className="text-sm font-medium text-foreground">Estado</p>
               <p className="text-xs text-muted mt-0.5">
-                Page comment replies and Messenger DMs depend on this connection.
+                Las respuestas a comentarios de la Página y los DMs de Messenger dependen de esta conexión.
               </p>
             </div>
             <span
@@ -295,14 +294,14 @@ export default function SettingsPage() {
                   : "bg-warning/10 text-warning"
               }`}
             >
-              {facebookPages.length > 0 ? "Connected" : "Not connected"}
+              {facebookPages.length > 0 ? "Conectada" : "No conectada"}
             </span>
           </div>
 
           <div className="space-y-3 py-3">
             {facebookPages.length === 0 && (
               <p className="text-sm text-muted">
-                Connect a Facebook Page to launch Messenger/comment campaigns for it.
+                Conecta una Página de Facebook para lanzar campañas de Messenger o comentarios.
               </p>
             )}
             {facebookPages.map((page) => (
@@ -313,7 +312,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">{page.name}</p>
                   <p className="mt-1 text-xs text-muted">
-                    {page.webhookSubscribed ? "Webhook ready" : "Webhook pending"}
+                    {page.webhookSubscribed ? "Webhook listo" : "Webhook pendiente"}
                   </p>
                 </div>
                 <button
@@ -322,8 +321,8 @@ export default function SettingsPage() {
                   className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
                 >
                   {busy === `disconnect-fb:${page.id}`
-                    ? "Disconnecting..."
-                    : "Disconnect"}
+                    ? "Desconectando..."
+                    : "Desconectar"}
                 </button>
               </div>
             ))}
@@ -335,27 +334,28 @@ export default function SettingsPage() {
             href="/api/facebook/connect"
             className="px-4 py-2 rounded text-sm font-medium transition-colors bg-accent text-white hover:bg-accent-hover"
           >
-            {facebookPages.length > 0 ? "Connect another Page" : "Connect Facebook Page"}
+            {facebookPages.length > 0 ? "Conectar otra Página" : "Conectar Página de Facebook"}
           </a>
         </div>
       </section>
 
       <section className="panel rounded p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-2">AI Fallback Reply</h2>
+        <h2 className="text-base font-semibold mb-2">Respuesta de respaldo con IA</h2>
         <p className="text-xs text-muted mb-6">
-          When a DM matches no campaign&apos;s keywords, campaigns with &ldquo;Use as AI
-          fallback&rdquo; turned on will answer with this business info instead of
-          staying silent. Leave both fields empty to disable it everywhere.
+          Cuando un DM no coincide con ninguna palabra clave de campaña, las campañas
+          con &ldquo;Usar como respaldo IA&rdquo; activado responderán con esta información del
+          negocio en vez de quedarse en silencio. Deja ambos campos vacíos para
+          desactivarlo en todos lados.
         </p>
         <form onSubmit={saveLlmSettings} className="space-y-4">
           <label className="flex flex-col gap-2 text-sm">
             <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Business info (address, hours, parking, common questions)
+              Información del negocio (dirección, horario, estacionamiento, preguntas frecuentes)
             </span>
             <textarea
               value={llmBusinessContext}
               onChange={(e) => setLlmBusinessContext(e.target.value)}
-              placeholder="We're at 123 Main St, open 9am-9pm daily. Free parking in the back lot."
+              placeholder="Estamos en Av. Principal 123, abierto de 9 a 21h todos los días. Estacionamiento gratis atrás."
               rows={5}
               maxLength={4000}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
@@ -363,12 +363,12 @@ export default function SettingsPage() {
           </label>
           <label className="flex flex-col gap-2 text-sm">
             <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Redirect link (for anything it can&apos;t answer)
+              Enlace de derivación (para todo lo que no pueda responder)
             </span>
             <input
               value={llmRedirectLink}
               onChange={(e) => setLlmRedirectLink(e.target.value)}
-              placeholder="https://wa.me/1234567890"
+              placeholder="https://wa.me/56912345678"
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
             />
           </label>
@@ -379,15 +379,15 @@ export default function SettingsPage() {
               disabled={busy === "llm-settings"}
               className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
             >
-              {busy === "llm-settings" ? "Saving..." : "Save"}
+              {busy === "llm-settings" ? "Guardando..." : "Guardar"}
             </button>
-            {llmSaved && <span className="text-sm text-success">Saved.</span>}
+            {llmSaved && <span className="text-sm text-success">Guardado.</span>}
           </div>
         </form>
       </section>
 
       <section className="panel rounded p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-6">Team</h2>
+        <h2 className="text-base font-semibold mb-6">Equipo</h2>
         <div className="space-y-3">
           {membersData?.members.map((member) => (
             <div
@@ -396,7 +396,7 @@ export default function SettingsPage() {
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-foreground">
-                  {member.user.name ?? member.user.email ?? "Unknown member"}
+                  {member.user.name ?? member.user.email ?? "Miembro desconocido"}
                 </p>
                 <p className="text-xs text-muted">{member.user.email}</p>
               </div>
@@ -410,7 +410,7 @@ export default function SettingsPage() {
         {membersData?.invitations.length ? (
           <div className="mt-6 border-t border-border pt-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Pending invites
+              Invitaciones pendientes
             </p>
             <div className="space-y-3">
               {membersData.invitations.map((invitation) => (
@@ -434,7 +434,7 @@ export default function SettingsPage() {
                       }
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
                     >
-                      Copy
+                      Copiar
                     </button>
                     <button
                       type="button"
@@ -442,7 +442,7 @@ export default function SettingsPage() {
                       disabled={busy === `invite:${invitation.id}`}
                       className="rounded-lg border border-error/20 px-3 py-1.5 text-xs font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-50"
                     >
-                      Revoke
+                      Revocar
                     </button>
                   </div>
                 </div>
@@ -460,7 +460,7 @@ export default function SettingsPage() {
               type="email"
               value={inviteEmail}
               onChange={(event) => setInviteEmail(event.target.value)}
-              placeholder="teammate@agency.com"
+              placeholder="colega@agencia.com"
               className="rounded border border-border bg-surface px-4 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
               required
             />
@@ -471,15 +471,15 @@ export default function SettingsPage() {
               }
               className="rounded border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
             >
-              <option value="MEMBER">Member</option>
-              <option value="ADMIN">Admin</option>
+              <option value="MEMBER">Miembro</option>
+              <option value="ADMIN">Administrador</option>
             </select>
             <button
               type="submit"
               disabled={busy === "invite"}
               className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
             >
-              {busy === "invite" ? "Inviting..." : "Invite"}
+              {busy === "invite" ? "Invitando..." : "Invitar"}
             </button>
             {memberError && (
               <p className="sm:col-span-3 text-sm text-error">{memberError}</p>
@@ -489,14 +489,14 @@ export default function SettingsPage() {
       </section>
 
       <section className="panel rounded p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-6">Usage</h2>
+        <h2 className="text-base font-semibold mb-6">Uso</h2>
         <div className="flex items-center justify-between gap-3 py-3">
           <div>
             <p className="text-sm font-medium text-foreground">
-              DMs sent this month
+              DMs enviados este mes
             </p>
             <p className="text-xs text-muted mt-0.5">
-              Self-hosted — no plan limits.
+              Sin límites de plan.
             </p>
           </div>
           <span className="text-sm font-semibold text-foreground">

@@ -13,38 +13,38 @@ const TONE_CLASSES: Record<Tone, string> = {
 const MESSAGES: Record<string, { tone: Tone; title: string; detail: string }> = {
   denied: {
     tone: "warning",
-    title: "Facebook connection cancelled",
+    title: "Conexión con Facebook cancelada",
     detail:
-      "You declined the permission prompt on Facebook. Start again and accept all requested permissions.",
+      "Rechazaste el permiso en Facebook. Vuelve a intentarlo y acepta todos los permisos solicitados.",
   },
   invalid: {
     tone: "error",
-    title: "Facebook connection expired",
+    title: "La conexión con Facebook expiró",
     detail:
-      "The login link was missing or older than 10 minutes. Click Connect Facebook Page to start a fresh attempt.",
+      "Faltaba el enlace de inicio de sesión o pasaron más de 10 minutos. Haz clic en Conectar Página de Facebook para intentarlo de nuevo.",
   },
   forbidden: {
     tone: "error",
-    title: "Not permitted",
-    detail: "Only workspace owners and admins can connect a Facebook Page.",
+    title: "No permitido",
+    detail: "Solo los dueños y administradores del workspace pueden conectar una Página de Facebook.",
   },
   already_connected: {
     tone: "warning",
-    title: "Page already connected",
+    title: "La Página ya está conectada",
     detail:
-      "That Facebook Page is connected to another workspace. Disconnect it there first, or connect a different Page.",
+      "Esa Página de Facebook está conectada a otro workspace. Desconéctala ahí primero, o conecta una Página distinta.",
   },
   no_pages: {
     tone: "error",
-    title: "No Facebook Pages found",
+    title: "No se encontraron Páginas de Facebook",
     detail:
-      "Your Facebook account doesn't manage any Pages, or didn't grant access to one during login. Make sure you're an admin on the Page and grant it access when prompted.",
+      "Tu cuenta de Facebook no administra ninguna Página, o no otorgó acceso a ninguna durante el inicio de sesión. Asegúrate de ser administrador de la Página y de otorgarle acceso cuando se te pida.",
   },
   multiple_pages: {
     tone: "warning",
-    title: "Multiple Pages found",
+    title: "Se encontraron varias Páginas",
     detail:
-      "Your account manages more than one Facebook Page — this app only supports connecting one Page at a time right now. Log into Facebook with an account that only manages the one Page you want to connect, or ask the Page admin to remove the extra pages from that login.",
+      "Tu cuenta administra más de una Página de Facebook — por ahora esta app solo permite conectar una Página a la vez. Inicia sesión en Facebook con una cuenta que solo administre la Página que quieres conectar, o pide al administrador que quite las Páginas de más de esa sesión.",
   },
 };
 
@@ -60,13 +60,13 @@ export function FacebookConnectNotice() {
       .filter(Boolean);
 
     return (
-      <Notice tone="error" title="Facebook app not configured">
+      <Notice tone="error" title="La app de Facebook no está configurada">
         <p>
-          Set{" "}
+          Configura{" "}
           {missing.length > 0
-            ? "these environment variables"
-            : "the required environment variables"}{" "}
-          and restart the server:
+            ? "estas variables de entorno"
+            : "las variables de entorno requeridas"}{" "}
+          y reinicia el servidor:
         </p>
         {missing.length > 0 && (
           <ul className="mt-2 space-y-1">
@@ -85,11 +85,11 @@ export function FacebookConnectNotice() {
     const reason = searchParams.get("reason");
 
     return (
-      <Notice tone="error" title="Facebook connection failed">
+      <Notice tone="error" title="Falló la conexión con Facebook">
         <p>
-          Facebook accepted the login but the connection could not be
-          completed. This is usually a mismatched redirect URI or an app that is
-          missing the required permissions.
+          Facebook aceptó el inicio de sesión pero la conexión no se pudo
+          completar. Suele ser una URI de redirección que no coincide, o una
+          app a la que le faltan permisos requeridos.
         </p>
         {reason && (
           <p className="mt-2 font-mono text-xs break-words opacity-80">

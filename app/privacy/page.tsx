@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy - OpenReply",
+  title: "Privacy Policy - AutoReply",
   description:
-    "How OpenReply handles Instagram and Facebook Page account data, webhook payloads, billing data, and customer campaign information.",
+    "How AutoReply handles Instagram and Facebook Page account data, webhook payloads, billing data, and customer campaign information.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalShell
       title="Privacy Policy"
-      description="OpenReply helps businesses send Meta-compliant private replies and Messenger DMs when people comment on connected Instagram posts, reels, or Facebook Page posts, or message the Page directly."
+      description="AutoReply helps businesses send Meta-compliant private replies and Messenger DMs when people comment on connected Instagram posts, reels, or Facebook Page posts, or message the Page directly."
       updatedAt="August 23, 2026"
     >
       <section>
@@ -40,7 +40,7 @@ export default function PrivacyPage() {
       <section>
         <h2 className="text-xl font-bold text-white">Instagram And Meta Data</h2>
         <p className="mt-3">
-          OpenReply does not ask for Instagram or Facebook passwords, scrape
+          AutoReply does not ask for Instagram or Facebook passwords, scrape
           either platform, or use browser automation. Instagram and Facebook
           Page tokens are encrypted at rest and are used only to perform
           actions authorized by the connected business account or Page.
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
         <h2 className="text-xl font-bold text-white">Contact</h2>
         <p className="mt-3">
           For privacy questions, contact the repository owner through GitHub or
-          the support email configured for the hosted OpenReply service.
+          the support email configured for the hosted AutoReply service.
         </p>
       </section>
     </LegalShell>

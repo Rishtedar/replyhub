@@ -91,17 +91,17 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-            Hello, {stats?.userName ?? "there"}!
+            Hola, {stats?.userName ?? "de nuevo"}!
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {connectedCount} connected{" "}
-            {connectedCount === 1 ? "account" : "accounts"}
+            {connectedCount}{" "}
+            {connectedCount === 1 ? "cuenta conectada" : "cuentas conectadas"}
             {" · "}
             {stats?.contactsCount ?? 0}{" "}
-            {stats?.contactsCount === 1 ? "contact" : "contacts"}
+            {stats?.contactsCount === 1 ? "contacto" : "contactos"}
             {" · "}
             <a href="/logs" className="text-accent hover:underline">
-              See activity
+              Ver actividad
             </a>
           </p>
         </div>
@@ -117,13 +117,13 @@ export default function DashboardPage() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         <StatCard
-          label="Active Campaigns"
+          label="Campañas activas"
           value={stats?.activeAutomations ?? 0}
         />
-        <StatCard label="DMs Sent" value={stats?.dmsSentMonth ?? 0} />
-        <StatCard label="Skipped" value={stats?.dmsSkippedMonth ?? 0} />
-        <StatCard label="Failed" value={stats?.dmsFailedMonth ?? 0} />
-        <StatCard label="Clicks" value={stats?.clicksThisMonth ?? 0} />
+        <StatCard label="DMs enviados" value={stats?.dmsSentMonth ?? 0} />
+        <StatCard label="Omitidos" value={stats?.dmsSkippedMonth ?? 0} />
+        <StatCard label="Fallidos" value={stats?.dmsFailedMonth ?? 0} />
+        <StatCard label="Clics" value={stats?.clicksThisMonth ?? 0} />
         <StatCard label="CTR" value={`${stats?.ctrThisMonth ?? 0}%`} />
       </div>
 
@@ -131,7 +131,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 sm:gap-6">
         {/* 7-Day Chart */}
         <div className="lg:col-span-3 panel rounded p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-6">DMs — Last 7 Days</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-6">DMs — Últimos 7 días</h2>
           <div className="flex items-end gap-1.5 h-40 sm:gap-2">
             {stats?.dailyDMs.map((day) => (
               <div key={day.date} className="min-w-0 flex-1 flex flex-col items-center gap-2">
@@ -151,10 +151,10 @@ export default function DashboardPage() {
 
         {/* Top Keywords */}
         <div className="lg:col-span-1 panel rounded p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Top Keywords</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">Palabras clave con más uso</h2>
           <div className="space-y-3">
             {stats?.topKeywords.length === 0 && (
-              <p className="text-sm text-muted py-8">No keyword matches yet</p>
+              <p className="text-sm text-muted py-8">Todavía no hay coincidencias</p>
             )}
             {stats?.topKeywords.map((keyword) => (
               <div key={keyword.keyword} className="flex items-center justify-between gap-3">
@@ -169,10 +169,10 @@ export default function DashboardPage() {
 
         {/* Recent Activity */}
         <div className="lg:col-span-2 panel rounded p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Recent Activity</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">Actividad reciente</h2>
           <div className="space-y-3 max-h-60 overflow-y-auto">
             {stats?.recentLogs.length === 0 && (
-              <p className="text-sm text-muted text-center py-8">No activity yet</p>
+              <p className="text-sm text-muted text-center py-8">Todavía no hay actividad</p>
             )}
             {stats?.recentLogs.map((log) => (
               <div
@@ -181,7 +181,7 @@ export default function DashboardPage() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground truncate">
-                    @{log.commenterName ?? "unknown"}
+                    @{log.commenterName ?? "desconocido"}
                   </p>
                   <p className="text-xs text-muted truncate">
                     {log.instagramAccount
